@@ -60,7 +60,7 @@ The implementation will focus on practical asset packaging and referencing workf
 
 ## Cross-DCC Software Connectivity
 
-The system utilises USD as an interchange format to enable reliable asset transfer between Digital Content Creation applications. By exporting assets into a standardised USD structure, the tool promotes interoperability between software environments while reducing manual conversion steps.
+The system utilises USD as an interchange format to enable reliable asset transfer between DCC applications. By exporting assets into a standardised USD structure, the tool promotes interoperability between software environments while reducing manual conversion steps.
 
 This demonstrates how pipeline tools facilitate communication between departments working across different DCC applications.
 
