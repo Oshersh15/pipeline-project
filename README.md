@@ -3,11 +3,18 @@
 # USD-Based Asset Publishing and Validation Tool for DCC Pipelines
 
 ## Initial Design
-This project proposes the development of an automated asset publishing and validation tool designed to introduce structured pipeline practices within DCC workflows.
+This project proposes the development of an automated asset publishing and validation tool for DCC workflows, with Autodesk Maya used as the initial test environment.
 
-The system will operate within Autodesk Maya and formalise the process of preparing, validating, versioning, and exporting assets into a consistent USD-based structure. The objective is to reduce common production issues such as inconsistent naming, overwritten files, missing dependencies, and unreliable version control.
+The overall aim is to build towards a USD-based publishing pipeline, but the first stage of development focuses on a smaller and more achievable workflow: validating selected Maya scene objects, applying basic asset rules, creating versioned publish outputs, and recording metadata for each publish.
 
-Rather than building a full asset management system, the project focuses specifically on the publish stage of the pipeline, demonstrating how structured asset management and automation can be implemented in a controlled prototype environment.
+This reduced scope allows the core pipeline workflow to be tested before adding larger features such as full USD scene export, database-backed production tracking, and cross-DCC integration.
+
+The first prototype therefore concentrates on:
+- Storing asset rules in an external configuration file
+- Enforcing rules through validation checks
+- Creating structured versioned publish folders
+- Recording publish history using metadata files
+- Testing the workflow inside Maya
 
 ## Definition of an Asset
 
@@ -38,6 +45,21 @@ The publishing process will:
 - Maintain traceable publish history
 
 This ensures predictable asset locations and reproducible workflows, reflecting common asset management practices used in professional pipelines.
+
+## Current Development Focus
+
+To keep the project achievable, the current development phase focuses on the publish stage rather than a full asset management system.
+
+The current prototype investigates:
+- How asset rules can be stored externally
+- How validation rules can be enforced inside Maya
+- How publish versions can be created safely
+- How publish history can be recorded
+- How the workflow can later connect to USD export and database tracking
+
+At this stage, asset rules are stored in a JSON configuration file. This allows validation rules to be edited and extended without rewriting the core tool logic.
+
+Publish history is currently recorded through structured version folders and metadata files. This provides a lightweight first step before introducing a database such as SQLite or MongoDB.
 
 ## Validation Framework
 
@@ -77,23 +99,19 @@ Stored metadata will include:
 
 This provides visibility into asset development and allows a clear overview of which assets are current, validated, and production-ready.
 
-## Database and Storage Design
+## Storage and History Design
 
-Asset metadata will be stored using a SQLite database. This approach provides:
+The project will use a staged approach to storage and history tracking.
 
-- Structured querying of asset information
-- Local portability
-- Minimal deployment complexity
-- Compatibility with Python-based DCC integrations
+In the initial prototype, publish history is recorded using:
 
-The database schema will include tables for:
+- Versioned folder structures
+- Metadata files stored alongside published assets
+- Asset name, type, version, publish path, and author information
 
-- Asset information
-- Version history
-- File locations
-- Publish metadata
+This file-based approach keeps the early workflow simple and allows the core publishing logic to be tested before adding database complexity.
 
-This supports asset tracking without requiring server infrastructure.
+A later stage of the project will investigate database-backed tracking using SQLite or MongoDB. This would allow more advanced querying of asset history, publish status, validation results, and file locations.
 
 ## DCC Integration
 
@@ -136,3 +154,23 @@ The final deliverable will be a functioning prototype asset publishing system de
 - Extension of Maya through Python API development
 
 The project will include technical documentation, database schema design, system architecture description, and demonstration of the working tool.
+
+The project will initially demonstrate a working prototype of the publish-stage workflow, forming the foundation for a full USD-based asset publishing pipeline.
+
+## Usage (Prototype)
+
+The tool is currently executed inside Autodesk Maya via the Script Editor.
+
+To run the tool, ensure the project `src` directory is available in Python’s path, then launch the UI:
+
+```python
+import sys
+
+# Add the project 'src' directory to sys.path
+sys.path.append("/path/to/pipelineproject-Oshersh15/src")
+
+import importlib
+import asset_publish_tool.ui.maya_ui as maya_ui
+
+importlib.reload(maya_ui)
+maya_ui.show_ui()
