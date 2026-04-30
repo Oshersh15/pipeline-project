@@ -1,0 +1,24 @@
+{
+  "scene_object_rules": {
+    "model": {
+      "name_pattern": ".*_model$",
+      "export_to_usd": true,
+      "required_checks": ["lowercase_name", "no_spaces", "valid_characters"]
+    },
+    "rig": {
+      "name_pattern": ".*_rig$",
+      "export_to_usd": false,
+      "required_checks": ["lowercase_name", "no_spaces", "valid_characters"]
+    },
+    "light": {
+      "name_pattern": ".*_light$",
+      "export_to_usd": true,
+      "required_checks": ["lowercase_name", "no_spaces", "valid_characters"]
+    },
+    "camera": {
+      "name_pattern": ".*_camera$",
+      "export_to_usd": true,
+      "required_checks": ["lowercase_name", "no_spaces", "valid_characters"]
+    }
+  }
+}
