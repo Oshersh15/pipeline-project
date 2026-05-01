@@ -148,28 +148,43 @@ def publish_selected_objects():
             )
             continue
 
-        export_file = version_path / f"{asset_name}.obj"
+        obj_export_file = version_path / f"{asset_name}.obj"
+        usd_export_file = version_path / f"{asset_name}.usd"
 
+        # Ensure OBJ plugin is loaded
         if not cmds.pluginInfo("objExport", query=True, loaded=True):
             cmds.loadPlugin("objExport")
 
         cmds.select(obj, replace=True)
 
+        # Export as OBJ (simple geometry)
         cmds.file(
-            str(export_file),
+            str(obj_export_file),
             force=True,
             options="groups=1;ptgroups=1;materials=1;smoothing=1;normals=1",
             type="OBJexport",
             exportSelected=True,
         )
 
+        # Export as USD (main pipeline format)
+        cmds.file(
+            str(usd_export_file),
+            force=True,
+            type="USD Export",
+            exportSelected=True,
+        )
+
         asset = Asset(
             name=asset_name,
             asset_type=asset_type,
-            source_scene="current_scene",
+            source_scene=cmds.file(query=True, sceneName=True) or "unsaved_scene",
             version=version,
             publish_path=str(version_path),
             author="osher",
+            exports={
+                "obj": str(obj_export_file),
+                "usd": str(usd_export_file),
+            },
         )
 
         metadata_file = version_path / "metadata.json"

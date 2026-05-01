@@ -11,6 +11,7 @@ class Asset:
     version: str
     publish_path: str
     author: str
+    exports: dict = field(default_factory=dict)
     created_at: str = field(
         default_factory=lambda: datetime.now().isoformat(timespec="seconds")
     )
@@ -23,5 +24,6 @@ class Asset:
             "version": self.version,
             "publish_path": str(self.publish_path) if self.publish_path else None,
             "author": self.author,
+            "exports": self.exports,
             "created_at": self.created_at,
         }
