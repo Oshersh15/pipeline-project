@@ -6,7 +6,10 @@ from asset_publish_tool.core.validator import (
     load_validation_rules,
     validate_scene_object,
 )
+from asset_publish_tool.database.asset_repository import save_asset
+from asset_publish_tool.maya.preview import capture_viewport_preview
 from asset_publish_tool.maya.scene_utils import (
+    detect_maya_object_type,
     get_expanded_scene_selection,
     get_mesh_transforms_from_selection,
 )
@@ -42,7 +45,8 @@ def validate_selected_objects():
             continue
 
         clean_obj_name = obj.split("|")[-1]
-        result = validate_scene_object(clean_obj_name, rules)
+        maya_object_type = detect_maya_object_type(obj)
+        result = validate_scene_object(clean_obj_name, rules, maya_object_type)
         results.append(result)
 
         print(f"Object: {result['name']}")
@@ -91,7 +95,8 @@ def publish_selected_objects():
             continue
 
         clean_obj_name = obj.split("|")[-1]
-        result = validate_scene_object(clean_obj_name, rules)
+        maya_object_type = detect_maya_object_type(obj)
+        result = validate_scene_object(clean_obj_name, rules, maya_object_type)
 
         if not result["valid"]:
             summary["skipped"].append(
@@ -138,41 +143,44 @@ def publish_selected_objects():
         # to support full scene publishing.
         # -------------------------------------------------------------
 
-        if asset_type != "model":
-            summary["skipped"].append(
-                {
-                    "name": obj,
-                    "reason": "Detected and validated, but current OBJ export backend only supports model assets",
-                    "errors": [],
-                }
-            )
-            continue
-
-        obj_export_file = version_path / f"{asset_name}.obj"
+        obj_export_file = None
         usd_export_file = version_path / f"{asset_name}.usd"
-
-        # Ensure OBJ plugin is loaded
-        if not cmds.pluginInfo("objExport", query=True, loaded=True):
-            cmds.loadPlugin("objExport")
 
         cmds.select(obj, replace=True)
 
-        # Export as OBJ (simple geometry)
-        cmds.file(
-            str(obj_export_file),
-            force=True,
-            options="groups=1;ptgroups=1;materials=1;smoothing=1;normals=1",
-            type="OBJexport",
-            exportSelected=True,
-        )
+        # Export OBJ only for model assets.
+        # OBJ is a geometry format, so cameras and lights should not be exported as OBJ.
+        if asset_type == "model":
+            obj_export_file = version_path / f"{asset_name}.obj"
 
-        # Export as USD (main pipeline format)
+            if not cmds.pluginInfo("objExport", query=True, loaded=True):
+                cmds.loadPlugin("objExport")
+
+            cmds.file(
+                str(obj_export_file),
+                force=True,
+                options="groups=1;ptgroups=1;materials=1;smoothing=1;normals=1",
+                type="OBJexport",
+                exportSelected=True,
+            )
+
+        # Export USD for all supported asset types.
+        # USD can represent models, cameras, and lights, so this is the main pipeline export.
         cmds.file(
             str(usd_export_file),
             force=True,
             type="USD Export",
             exportSelected=True,
         )
+
+        preview_file = version_path / f"{asset_name}_preview.png"
+
+        try:
+            capture_viewport_preview(obj, preview_file)
+            preview_path = str(preview_file)
+        except Exception as e:
+            preview_path = ""
+            print(f"Preview capture failed for {asset_name}: {e}")
 
         asset = Asset(
             name=asset_name,
@@ -184,11 +192,18 @@ def publish_selected_objects():
             exports={
                 "obj": str(obj_export_file),
                 "usd": str(usd_export_file),
+                "preview": preview_path,
             },
         )
 
         metadata_file = version_path / "metadata.json"
         write_metadata(asset, metadata_file)
+
+        try:
+            mongo_id = save_asset(asset.to_dict())
+            print(f"Saved asset metadata to MongoDB: {mongo_id}")
+        except Exception as e:
+            print(f"MongoDB save failed for {asset_name}: {e}")
 
         summary["published"].append(
             {
