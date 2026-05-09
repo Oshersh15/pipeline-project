@@ -51,14 +51,27 @@ def validate_basic_name_rules(object_name: str) -> list[str]:
 
 
 # 4. Full validation per object
-def validate_scene_object(object_name: str, rules: dict) -> dict:
+def validate_scene_object(object_name: str, rules: dict, maya_object_type=None) -> dict:
     errors = []
 
-    # Step A: identify type
-    object_type = identify_object_type(object_name, rules)
+    # Type suggested by the object name, e.g. chair_light -> light
+    name_object_type = identify_object_type(object_name, rules)
 
-    if object_type is None:
+    if name_object_type is None:
         errors.append("Object name does not match any known type pattern.")
+
+    # If Maya type was provided, compare it against the name-based type
+    if maya_object_type and maya_object_type != "unknown":
+        object_type = maya_object_type
+
+        if name_object_type and name_object_type != maya_object_type:
+            errors.append(
+                f"Name suggests '{name_object_type}', but Maya object type is '{maya_object_type}'."
+            )
+    else:
+        object_type = name_object_type or "unknown"
+
+    if object_type == "unknown":
         return {
             "name": object_name,
             "type": "unknown",
@@ -67,17 +80,16 @@ def validate_scene_object(object_name: str, rules: dict) -> dict:
             "errors": errors,
         }
 
-    # Step B: run basic checks
+    # Basic name checks
     name_errors = validate_basic_name_rules(object_name)
     errors.extend(name_errors)
 
-    # Step C: get rule info
-    object_rule = rules["scene_object_rules"][object_type]
+    object_rule = rules["scene_object_rules"].get(object_type, {})
 
     return {
         "name": object_name,
         "type": object_type,
         "valid": len(errors) == 0,
-        "export_to_usd": object_rule["export_to_usd"],
+        "export_to_usd": object_rule.get("export_to_usd", False),
         "errors": errors,
     }

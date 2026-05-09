@@ -1,42 +1,55 @@
 # TODO
 
-## Core Validation System
+## Validation
 - [x] JSON-based validation configuration
 - [x] Regex-based naming validation
-- [x] Object type detection (model, camera, light)
+- [x] Object type detection
 - [x] Validation workflow inside Maya
+- [x] Automatic naming correction
+- [ ] Add transform validation checks
+- [ ] Improve validation messages and reporting
 
-## Scene Processing
-- [x] Selection handling from Maya
-- [x] Support for hierarchical scenes (groups within groups)
-- [x] Automatic naming correction based on object type
+---
 
-## Publishing System
-- [x] Versioned folder structure
+## Publishing
+- [x] Versioned publish folders
 - [x] Automatic version incrementing
-- [x] Metadata generation per asset
-- [x] Basic publish workflow
+- [x] Metadata generation
+- [x] OBJ export
+- [x] USD export
+- [x] Viewport preview generation
+- [ ] Improve publish summaries
+- [ ] Test publishing with larger scenes
 
-## Export System (USD Pipeline)
-- [ ] Implement USD export for a single asset (replace OBJ)
-- [ ] Define what data is included in the USD (geometry / transforms / hierarchy)
-- [ ] Extend export to support multiple object types (not only models)
-- [ ] Test exporting a simple scene (more than one object)
+---
 
-## Validation
-- [ ] Add scale check (basic unit validation)
-- [ ] Add check for empty transforms
+## MongoDB Backend
+- [x] MongoDB connection setup
+- [x] Podman MongoDB workflow
+- [x] Backend metadata storage
+- [x] Backend-driven asset loading in UI
+- [ ] Investigate storing asset packages using GridFS
+- [ ] Improve backend error handling
 
-## Metadata
-- [ ] Add timestamp to metadata
-- [ ] Store validation result in metadata
-
-## Users / Author Tracking
-- [ ] Decide whether a user system is needed
-- [ ] Replace hardcoded author value
-- [ ] Decide how author is defined (system username vs manual input)
-- [ ] Store author information consistently in metadata
+---
 
 ## UI
-- [ ] Improve validation messages (clearer reasons)
-- [ ] Allow fixing selected objects only
+- [ ] Separate validation and database sections into tabs
+- [ ] Improve layout organisation
+- [ ] Improve table refresh behaviour
+- [ ] Add asset filtering/search
+
+---
+
+## Testing and Documentation
+- [ ] Add basic automated tests
+- [ ] Investigate Nox workflow for testing
+- [x] Create INSTALL.md documentation
+- [ ] Continue improving README documentation
+
+---
+
+## Future Investigation
+- [ ] Authentication/user system
+- [ ] Remote database deployment
+- [ ] Cross-DCC workflow extensions

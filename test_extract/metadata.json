@@ -1,0 +1,14 @@
+{
+    "name": "castiron_2_model",
+    "asset_type": "model",
+    "source_scene": "/Users/osher/Downloads/ClutterStarter (copy)/Kitchen_set/Kitchen_set1.ma",
+    "version": "v001",
+    "publish_path": "/Users/osher/repos/Projects/pipelineproject-Oshersh15/published_assets/model/castiron_2_model/v001",
+    "author": "osher",
+    "exports": {
+        "obj": "/Users/osher/repos/Projects/pipelineproject-Oshersh15/published_assets/model/castiron_2_model/v001/castiron_2_model.obj",
+        "usd": "/Users/osher/repos/Projects/pipelineproject-Oshersh15/published_assets/model/castiron_2_model/v001/castiron_2_model.usd",
+        "preview": "/Users/osher/repos/Projects/pipelineproject-Oshersh15/published_assets/model/castiron_2_model/v001/castiron_2_model_preview.png"
+    },
+    "created_at": "2026-05-07T15:31:34"
+}

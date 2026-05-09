@@ -1,15 +1,23 @@
 import importlib.util
+import os
+import platform
+import subprocess
+from pathlib import Path
 
-# PySide6 → fallback to PySide2
+import maya.cmds as cmds
+
+from asset_publish_tool.core.metadata import read_metadata
+
 if importlib.util.find_spec("PySide6"):
-    from PySide6 import QtWidgets
+    from PySide6 import QtCore, QtGui, QtWidgets
     from shiboken6 import wrapInstance
 else:
-    from PySide2 import QtWidgets
+    from PySide2 import QtCore, QtGui, QtWidgets
     from shiboken2 import wrapInstance
 
 import maya.OpenMayaUI as omui
 
+from asset_publish_tool.database.asset_repository import get_all_assets
 from asset_publish_tool.maya.publisher import (
     publish_selected_objects,
     validate_selected_objects,
@@ -27,8 +35,8 @@ class PipelineToolWindow(QtWidgets.QDialog):
         super().__init__(parent)
 
         self.setWindowTitle("Asset Publish Tool")
-        self.setMinimumWidth(450)
-        self.setMinimumHeight(320)
+        self.setMinimumWidth(700)
+        self.setMinimumHeight(500)
 
         self.build_ui()
         self.connect_signals()
@@ -39,19 +47,365 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.validate_button = QtWidgets.QPushButton("Validate Selected Objects")
         self.fix_button = QtWidgets.QPushButton("Fix Invalid Names")
         self.publish_button = QtWidgets.QPushButton("Publish Selected Objects")
-
+        self.search_bar = QtWidgets.QLineEdit()
+        self.search_bar.setPlaceholderText("Search published assets...")
+        self.open_folder_button = QtWidgets.QPushButton("Open Selected Publish Folder")
+        self.open_folder_button.setEnabled(False)
+        self.selected_publish_path = ""
         self.output = QtWidgets.QTextEdit()
         self.output.setReadOnly(True)
+
+        self.tabs = QtWidgets.QTabWidget()
+
+        self.model_table = self._create_asset_table(show_preview=True)
+        self.camera_table = self._create_asset_table(show_preview=False)
+        self.light_table = self._create_asset_table(show_preview=False)
+
+        self.tabs.addTab(self.model_table, "Models")
+        self.tabs.addTab(self.camera_table, "Cameras")
+        self.tabs.addTab(self.light_table, "Lights")
 
         layout.addWidget(self.validate_button)
         layout.addWidget(self.fix_button)
         layout.addWidget(self.publish_button)
         layout.addWidget(self.output)
+        layout.addWidget(self.search_bar)
+        layout.addWidget(self.tabs)
+        layout.addWidget(self.open_folder_button)
+
+        self.load_published_assets()
+
+    def _create_asset_table(self, show_preview=True):
+        table = QtWidgets.QTableWidget()
+
+        if show_preview:
+            table.setColumnCount(4)
+            table.setHorizontalHeaderLabels(
+                ["Preview", "Asset Name", "Version", "Publish Path"]
+            )
+            table.setIconSize(QtCore.QSize(80, 80))
+            table.verticalHeader().setDefaultSectionSize(90)
+        else:
+            table.setColumnCount(3)
+            table.setHorizontalHeaderLabels(["Asset Name", "Version", "Publish Path"])
+            table.verticalHeader().setDefaultSectionSize(35)
+
+        table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+
+        header = table.horizontalHeader()
+
+        for column in range(table.columnCount()):
+            if column == table.columnCount() - 1:
+                header.setSectionResizeMode(column, QtWidgets.QHeaderView.Stretch)
+            else:
+                header.setSectionResizeMode(
+                    column, QtWidgets.QHeaderView.ResizeToContents
+                )
+
+        return table
 
     def connect_signals(self):
         self.validate_button.clicked.connect(self.run_validation)
         self.fix_button.clicked.connect(self.run_fix_names)
         self.publish_button.clicked.connect(self.run_publish)
+
+        self.open_folder_button.clicked.connect(self.open_selected_publish_folder)
+        self.search_bar.textChanged.connect(self.filter_asset_tables)
+
+        self.model_table.itemSelectionChanged.connect(
+            lambda: self.on_table_selection_changed(self.model_table, show_preview=True)
+        )
+        self.camera_table.itemSelectionChanged.connect(
+            lambda: self.on_table_selection_changed(
+                self.camera_table, show_preview=False
+            )
+        )
+        self.light_table.itemSelectionChanged.connect(
+            lambda: self.on_table_selection_changed(
+                self.light_table, show_preview=False
+            )
+        )
+
+    def load_published_assets(self):
+        project_root = Path(__file__).resolve().parents[3]
+        publish_root = project_root / "published_assets"
+
+        self.model_table.setRowCount(0)
+        self.camera_table.setRowCount(0)
+        self.light_table.setRowCount(0)
+
+        if not publish_root.exists():
+            return
+
+        asset_documents = get_all_assets()
+
+        assets_by_key = {}
+
+        for metadata in asset_documents:
+            asset_name = metadata.get("name", "")
+            asset_type = metadata.get("type", metadata.get("asset_type", ""))
+
+            key = (asset_type, asset_name)
+
+            if key not in assets_by_key:
+                assets_by_key[key] = []
+
+            assets_by_key[key].append(metadata)
+
+        for key, versions in assets_by_key.items():
+            asset_type, asset_name = key
+
+            versions = sorted(
+                versions,
+                key=lambda item: item.get("version", ""),
+                reverse=True,
+            )
+
+            latest_metadata = versions[0]
+
+            if asset_type == "model":
+                table = self.model_table
+                show_preview = True
+            elif asset_type == "camera":
+                table = self.camera_table
+                show_preview = False
+            elif asset_type == "light":
+                table = self.light_table
+                show_preview = False
+            else:
+                continue
+
+            row = table.rowCount()
+            table.insertRow(row)
+
+            self._populate_asset_table_row(
+                table,
+                row,
+                latest_metadata,
+                versions,
+                show_preview=show_preview,
+            )
+
+    def _populate_asset_table_row(
+        self, table, row, metadata, all_versions, show_preview=True
+    ):
+        asset_name = metadata.get("name", metadata.get("asset_name", ""))
+        version = metadata.get("version", "")
+        publish_path = metadata.get("publish_path", "")
+
+        if show_preview:
+            preview_image = metadata.get("preview_image")
+
+            preview_item = QtWidgets.QTableWidgetItem()
+
+            if preview_image:
+                pixmap = QtGui.QPixmap()
+                pixmap.loadFromData(preview_image)
+
+                pixmap = pixmap.scaled(
+                    80,
+                    80,
+                    QtCore.Qt.KeepAspectRatio,
+                    QtCore.Qt.SmoothTransformation,
+                )
+
+                icon = QtGui.QIcon(pixmap)
+                preview_item.setIcon(icon)
+            else:
+                preview_item.setText("")
+
+            table.setItem(row, 0, preview_item)
+
+            name_item = QtWidgets.QTableWidgetItem(asset_name)
+            name_item.setData(
+                QtCore.Qt.UserRole,
+                metadata.get("package_file_id"),
+            )
+            table.setItem(row, 1, name_item)
+
+            version_column = 2
+            path_column = 3
+
+        else:
+            name_item = QtWidgets.QTableWidgetItem(asset_name)
+            name_item.setData(
+                QtCore.Qt.UserRole,
+                metadata.get("package_file_id"),
+            )
+            table.setItem(row, 0, name_item)
+
+            version_column = 1
+            path_column = 2
+
+        version_dropdown = QtWidgets.QComboBox()
+
+        for version_metadata in all_versions:
+            version_dropdown.addItem(
+                version_metadata.get("version", ""),
+                version_metadata,
+            )
+
+        version_dropdown.setCurrentText(version)
+
+        version_dropdown.currentIndexChanged.connect(
+            lambda index, table=table, table_row=row, dropdown=version_dropdown, show_preview=show_preview: (
+                self._on_version_changed(
+                    table,
+                    table_row,
+                    dropdown,
+                    show_preview,
+                )
+            )
+        )
+
+        table.setCellWidget(row, version_column, version_dropdown)
+        table.setItem(row, path_column, QtWidgets.QTableWidgetItem(publish_path))
+
+    def _on_version_changed(self, table, row, dropdown, show_preview=True):
+        metadata = dropdown.currentData()
+
+        if not metadata:
+            return
+
+        publish_path = metadata.get("publish_path", "")
+
+        if show_preview:
+            preview_image = metadata.get("preview_image")
+
+            preview_item = QtWidgets.QTableWidgetItem()
+
+            if preview_image:
+                pixmap = QtGui.QPixmap()
+                pixmap.loadFromData(preview_image)
+
+                pixmap = pixmap.scaled(
+                    80,
+                    80,
+                    QtCore.Qt.KeepAspectRatio,
+                    QtCore.Qt.SmoothTransformation,
+                )
+
+                icon = QtGui.QIcon(pixmap)
+                preview_item.setIcon(icon)
+            else:
+                preview_item.setText("")
+
+            table.setItem(row, 0, preview_item)
+
+            name_item = table.item(row, 1)
+            if name_item:
+                name_item.setData(
+                    QtCore.Qt.UserRole,
+                    metadata.get("package_file_id"),
+                )
+
+            table.setItem(row, 3, QtWidgets.QTableWidgetItem(publish_path))
+
+        else:
+            name_item = table.item(row, 0)
+            if name_item:
+                name_item.setData(
+                    QtCore.Qt.UserRole,
+                    metadata.get("package_file_id"),
+                )
+
+            table.setItem(row, 2, QtWidgets.QTableWidgetItem(publish_path))
+
+    def find_scene_object_by_asset_name(self, asset_name):
+        transforms = cmds.ls(type="transform", long=True) or []
+
+        for obj in transforms:
+            short_name = obj.split("|")[-1]
+            short_name = short_name.split(":")[-1]
+
+            if short_name == asset_name:
+                return obj
+
+        return None
+
+    def on_table_selection_changed(self, table, show_preview=True):
+        selected_rows = table.selectionModel().selectedRows()
+
+        if not selected_rows:
+            self.selected_publish_path = ""
+            self.open_folder_button.setEnabled(False)
+            return
+
+        row = selected_rows[0].row()
+
+        if show_preview:
+            name_column = 1
+            path_column = 3
+        else:
+            name_column = 0
+            path_column = 2
+
+        name_item = table.item(row, name_column)
+        path_item = table.item(row, path_column)
+
+        if not name_item or not path_item:
+            return
+
+        asset_name = name_item.text()
+        publish_path = path_item.text()
+
+        self.selected_publish_path = publish_path
+        self.open_folder_button.setEnabled(bool(publish_path))
+
+        matching_object = self.find_scene_object_by_asset_name(asset_name)
+
+        if matching_object:
+            cmds.select(matching_object, replace=True)
+            self.output.setText(f"Selected scene object: {matching_object}")
+        else:
+            self.output.setText(
+                f"Published asset selected: {asset_name}\n"
+                f"No matching object with this name was found in the current Maya scene."
+            )
+
+    def open_selected_publish_folder(self):
+        if not self.selected_publish_path:
+            return
+
+        publish_path = Path(self.selected_publish_path)
+
+        if not publish_path.exists():
+            self.output.setText(f"Publish folder does not exist:\n{publish_path}")
+            return
+
+        system = platform.system()
+
+        if system == "Darwin":  # macOS
+            subprocess.Popen(["open", str(publish_path)])
+        elif system == "Windows":
+            os.startfile(str(publish_path))
+        else:  # Linux
+            subprocess.Popen(["xdg-open", str(publish_path)])
+
+        self.output.setText(f"Opened publish folder:\n{publish_path}")
+
+    def filter_asset_tables(self):
+        search_text = self.search_bar.text().lower().strip()
+
+        tables = [
+            (self.model_table, 1),  # Models: name column
+            (self.camera_table, 0),  # Cameras: name column
+            (self.light_table, 0),  # Lights: name column
+        ]
+
+        for table, name_column in tables:
+            for row in range(table.rowCount()):
+                name_item = table.item(row, name_column)
+
+                if not name_item:
+                    table.setRowHidden(row, False)
+                    continue
+
+                asset_name = name_item.text().lower()
+                should_hide = search_text not in asset_name
+
+                table.setRowHidden(row, should_hide)
 
     def run_fix_names(self):
         results = fix_selected_object_names()
@@ -61,6 +415,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         for result in results:
             output += f"{result['old_name']} -> {result['new_name']}\n"
+
+            if result.get("reason"):
+                output += f"   Note: {result['reason']}\n"
 
         self.output.setText(output)
 
@@ -98,7 +455,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         output += f"Published: {len(summary['published'])}\n"
         for item in summary["published"]:
             output += f" - {item['name']} ({item['type']}, {item['version']})\n"
-            output += f"   {item['path']}\n"
+            output += "   Stored in MongoDB/GridFS\n"
 
         output += "\n"
         output += f"Skipped: {len(summary['skipped'])}\n"
@@ -108,6 +465,8 @@ class PipelineToolWindow(QtWidgets.QDialog):
             for error in item["errors"]:
                 output += f"   - {error}\n"
 
+        self.load_published_assets()
+        self.filter_asset_tables()
         self.output.setText(output)
 
 
