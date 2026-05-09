@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 import maya.cmds as cmds
@@ -6,7 +7,12 @@ from asset_publish_tool.core.validator import (
     load_validation_rules,
     validate_scene_object,
 )
-from asset_publish_tool.database.asset_repository import save_asset
+from asset_publish_tool.database.asset_repository import (
+    create_publish_package,
+    load_binary_file,
+    save_asset,
+    store_publish_package,
+)
 from asset_publish_tool.maya.preview import capture_viewport_preview
 from asset_publish_tool.maya.scene_utils import (
     detect_maya_object_type,
@@ -126,23 +132,6 @@ def publish_selected_objects():
         version_path = publish_root / asset_type / asset_name / version
         version_path.mkdir(parents=True, exist_ok=True)
 
-        # -------------------------------------------------------------
-        # CURRENT EXPORT BACKEND: OBJ
-        # -------------------------------------------------------------
-        # The system supports multiple object types (models, cameras, lights),
-        # but the current export backend writes OBJ files.
-        #
-        # OBJ is suitable for geometry (meshes), but does not support
-        # cameras, lights, or full scene data.
-        #
-        # Therefore:
-        # - Models are exported as OBJ
-        # - Cameras and lights are detected and validated but skipped
-        #
-        # This section can later be extended with a USD exporter
-        # to support full scene publishing.
-        # -------------------------------------------------------------
-
         obj_export_file = None
         usd_export_file = version_path / f"{asset_name}.usd"
 
@@ -178,9 +167,20 @@ def publish_selected_objects():
         try:
             capture_viewport_preview(obj, preview_file)
             preview_path = str(preview_file)
+            preview_image = load_binary_file(preview_file)
         except Exception as e:
             preview_path = ""
+            preview_image = None
             print(f"Preview capture failed for {asset_name}: {e}")
+
+        package = create_publish_package(version_path)
+
+        package_name = f"{asset_name}_{version}.zip"
+
+        package_file_id = store_publish_package(
+            package,
+            package_name,
+        )
 
         asset = Asset(
             name=asset_name,
@@ -194,14 +194,25 @@ def publish_selected_objects():
                 "usd": str(usd_export_file),
                 "preview": preview_path,
             },
+            package_file_id=str(package_file_id),
+            preview_image=preview_image,
         )
 
         metadata_file = version_path / "metadata.json"
         write_metadata(asset, metadata_file)
 
         try:
-            mongo_id = save_asset(asset.to_dict())
+            mongo_id = save_asset(asset.to_mongo_dict())
             print(f"Saved asset metadata to MongoDB: {mongo_id}")
+            shutil.rmtree(version_path)
+            asset_folder = version_path.parent
+            asset_type_folder = asset_folder.parent
+
+            if asset_folder.exists() and not any(asset_folder.iterdir()):
+                asset_folder.rmdir()
+
+            if asset_type_folder.exists() and not any(asset_type_folder.iterdir()):
+                asset_type_folder.rmdir()
         except Exception as e:
             print(f"MongoDB save failed for {asset_name}: {e}")
 
@@ -210,7 +221,6 @@ def publish_selected_objects():
                 "name": asset_name,
                 "type": asset_type,
                 "version": version,
-                "path": str(version_path),
             }
         )
 

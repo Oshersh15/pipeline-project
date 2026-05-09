@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 
 @dataclass
@@ -15,6 +16,8 @@ class Asset:
     created_at: str = field(
         default_factory=lambda: datetime.now().isoformat(timespec="seconds")
     )
+    package_file_id: Optional[str] = None
+    preview_image: Optional[bytes] = None
 
     def to_dict(self) -> dict:
         return {
@@ -26,4 +29,12 @@ class Asset:
             "author": self.author,
             "exports": self.exports,
             "created_at": self.created_at,
+            "package_file_id": self.package_file_id,
         }
+
+    def to_mongo_dict(self) -> dict:
+        data = self.to_dict()
+
+        data["preview_image"] = self.preview_image
+
+        return data

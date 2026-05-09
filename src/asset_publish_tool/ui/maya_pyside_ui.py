@@ -195,32 +195,45 @@ class PipelineToolWindow(QtWidgets.QDialog):
         publish_path = metadata.get("publish_path", "")
 
         if show_preview:
-            exports = metadata.get("exports", {})
-            preview_path = exports.get("preview", "")
+            preview_image = metadata.get("preview_image")
 
             preview_item = QtWidgets.QTableWidgetItem()
 
-            if preview_path and Path(preview_path).exists():
-                pixmap = QtGui.QPixmap(preview_path)
+            if preview_image:
+                pixmap = QtGui.QPixmap()
+                pixmap.loadFromData(preview_image)
+
                 pixmap = pixmap.scaled(
                     80,
                     80,
                     QtCore.Qt.KeepAspectRatio,
                     QtCore.Qt.SmoothTransformation,
                 )
+
                 icon = QtGui.QIcon(pixmap)
                 preview_item.setIcon(icon)
             else:
                 preview_item.setText("")
 
             table.setItem(row, 0, preview_item)
-            table.setItem(row, 1, QtWidgets.QTableWidgetItem(asset_name))
+
+            name_item = QtWidgets.QTableWidgetItem(asset_name)
+            name_item.setData(
+                QtCore.Qt.UserRole,
+                metadata.get("package_file_id"),
+            )
+            table.setItem(row, 1, name_item)
 
             version_column = 2
             path_column = 3
 
         else:
-            table.setItem(row, 0, QtWidgets.QTableWidgetItem(asset_name))
+            name_item = QtWidgets.QTableWidgetItem(asset_name)
+            name_item.setData(
+                QtCore.Qt.UserRole,
+                metadata.get("package_file_id"),
+            )
+            table.setItem(row, 0, name_item)
 
             version_column = 1
             path_column = 2
@@ -258,27 +271,45 @@ class PipelineToolWindow(QtWidgets.QDialog):
         publish_path = metadata.get("publish_path", "")
 
         if show_preview:
-            exports = metadata.get("exports", {})
-            preview_path = exports.get("preview", "")
+            preview_image = metadata.get("preview_image")
 
             preview_item = QtWidgets.QTableWidgetItem()
 
-            if preview_path and Path(preview_path).exists():
-                pixmap = QtGui.QPixmap(preview_path)
+            if preview_image:
+                pixmap = QtGui.QPixmap()
+                pixmap.loadFromData(preview_image)
+
                 pixmap = pixmap.scaled(
                     80,
                     80,
                     QtCore.Qt.KeepAspectRatio,
                     QtCore.Qt.SmoothTransformation,
                 )
+
                 icon = QtGui.QIcon(pixmap)
                 preview_item.setIcon(icon)
             else:
                 preview_item.setText("")
 
             table.setItem(row, 0, preview_item)
+
+            name_item = table.item(row, 1)
+            if name_item:
+                name_item.setData(
+                    QtCore.Qt.UserRole,
+                    metadata.get("package_file_id"),
+                )
+
             table.setItem(row, 3, QtWidgets.QTableWidgetItem(publish_path))
+
         else:
+            name_item = table.item(row, 0)
+            if name_item:
+                name_item.setData(
+                    QtCore.Qt.UserRole,
+                    metadata.get("package_file_id"),
+                )
+
             table.setItem(row, 2, QtWidgets.QTableWidgetItem(publish_path))
 
     def find_scene_object_by_asset_name(self, asset_name):
@@ -424,7 +455,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         output += f"Published: {len(summary['published'])}\n"
         for item in summary["published"]:
             output += f" - {item['name']} ({item['type']}, {item['version']})\n"
-            output += f"   {item['path']}\n"
+            output += "   Stored in MongoDB/GridFS\n"
 
         output += "\n"
         output += f"Skipped: {len(summary['skipped'])}\n"
