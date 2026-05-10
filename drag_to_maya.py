@@ -21,6 +21,7 @@ def install_module():
 
     mod_content = f"""+ {MODULE_NAME} 1.0 {project_root}
 PYTHONPATH +:= src
+XBMLANGPATH +:= icons
 """
 
     mod_file_path.write_text(mod_content, encoding="utf-8")
@@ -33,9 +34,7 @@ def onMayaDroppedPythonFile(*args):  # noqa: N802
 
 
 def get_button_command():
-    launcher_path = Path(__file__).parent / "installer_files" / "launch_ui.py"
-
-    return launcher_path.read_text(encoding="utf-8")
+    return "import asset_publish_tool.launcher as launcher\nlauncher.show()"
 
 
 def setup_shelf():

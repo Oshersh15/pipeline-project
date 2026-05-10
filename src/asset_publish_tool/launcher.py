@@ -7,11 +7,13 @@ import asset_publish_tool.database.connection as connection
 import asset_publish_tool.maya.publisher as publisher
 import asset_publish_tool.ui.maya_pyside_ui as ui
 
-importlib.reload(asset)
-importlib.reload(versioning)
-importlib.reload(connection)
-importlib.reload(asset_repository)
-importlib.reload(publisher)
-importlib.reload(ui)
 
-ui.show_ui()
+def show():
+    importlib.reload(asset)
+    importlib.reload(versioning)
+    importlib.reload(connection)
+    importlib.reload(asset_repository)
+    importlib.reload(publisher)
+    importlib.reload(ui)
+
+    ui.show_ui()
