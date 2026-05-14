@@ -19,6 +19,7 @@ from asset_publish_tool.maya.scene_utils import (
     get_expanded_scene_selection,
     get_mesh_transforms_from_selection,
 )
+from asset_publish_tool.usd.usd_utils import process_exported_usd
 
 
 def validate_selected_objects():
@@ -161,6 +162,25 @@ def publish_selected_objects():
             type="USD Export",
             exportSelected=True,
         )
+
+        usd_processed = process_exported_usd(
+            usd_file=usd_export_file,
+            asset_name=asset_name,
+            asset_type=asset_type,
+            version=version,
+            author="osher",
+            source_scene=cmds.file(query=True, sceneName=True) or "unsaved_scene",
+        )
+
+        if not usd_processed:
+            summary["skipped"].append(
+                {
+                    "name": obj,
+                    "reason": "USD post-processing failed",
+                    "errors": [],
+                }
+            )
+            continue
 
         preview_file = version_path / f"{asset_name}_preview.png"
 
