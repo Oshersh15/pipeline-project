@@ -234,30 +234,23 @@ The project includes:
 
 # Usage (Prototype)
 
-The tool is currently executed inside Autodesk Maya via the Script Editor.
 
-To run the tool, ensure the project `src` directory is available in Python’s path, then launch the UI:
+The tool is currently executed inside Autodesk Maya through a drag-and-drop installer workflow.
 
-```python
-import sys
+To install the tool:
 
-# Add project src directory
-sys.path.append("/path/to/pipelineproject-Oshersh15/src")
+1. Open Autodesk Maya
+2. Drag `drag_to_maya.py` into the Maya viewport
 
-import importlib
+The installer automatically:
 
-import asset_publish_tool.database.connection as connection
-import asset_publish_tool.database.asset_repository as asset_repository
-import asset_publish_tool.maya.publisher as publisher
-import asset_publish_tool.ui.maya_pyside_ui as ui
+- Creates a Maya `.mod` file
+- Adds the project `src` directory to `PYTHONPATH`
+- Registers the project icon path through `XBMLANGPATH`
+- Creates an `AssetPublish` shelf
+- Adds a launcher button for opening the tool UI
 
-importlib.reload(connection)
-importlib.reload(asset_repository)
-importlib.reload(publisher)
-importlib.reload(ui)
-
-ui.show_ui()
-```
+After installation, the tool can be launched directly from the Maya shelf.
 
 ---
 

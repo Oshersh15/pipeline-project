@@ -115,44 +115,39 @@ Restart Maya after installation.
 
 ---
 
-# 7. Configure Maya Python Path
+# 7. Install the Maya Module
 
-Inside Maya Script Editor (Python tab), run:
+Launch Autodesk Maya.
 
-```python
-import sys
+Drag the file:
 
-project_src = "/Users/osher/repos/Projects/pipelineproject-Oshersh15/src"
-
-if project_src not in sys.path:
-    sys.path.append(project_src)
+```text
+drag_to_maya.py
 ```
 
-Update the path if the repository is located elsewhere on your machine.
+directly into the Maya viewport.
+
+The installer automatically:
+
+- Creates a Maya `.mod` module file
+- Adds the project `src` directory to `PYTHONPATH`
+- Registers the project icon path through `XBMLANGPATH`
+- Creates an `AssetPublish` shelf
+- Adds a launcher shelf button for the tool UI
+
+No manual `sys.path` modification is required.
 
 ---
 
 # 8. Launching the Tool
 
-Inside Maya Script Editor (Python tab), run:
+After installation, launch the tool directly from the Maya shelf:
 
-```python
-import importlib
-
-import asset_publish_tool.database.connection as connection
-import asset_publish_tool.database.asset_repository as asset_repository
-import asset_publish_tool.maya.publisher as publisher
-import asset_publish_tool.ui.maya_pyside_ui as ui
-
-importlib.reload(connection)
-importlib.reload(asset_repository)
-importlib.reload(publisher)
-importlib.reload(ui)
-
-ui.show_ui()
+```text
+AssetPublish → Asset Publish Tool
 ```
 
-This launches the PySide6/PySide2 publishing interface.
+This opens the PySide6/PySide2 publishing interface.
 
 ---
 

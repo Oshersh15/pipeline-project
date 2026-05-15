@@ -1,7 +1,11 @@
 from pathlib import Path
 from typing import Optional
 
-from pxr import Usd
+from pxr import Gf, Usd, UsdGeom
+
+# Preserves original Maya world placement on exported USD assets.
+# Useful for environment reconstruction workflows.
+APPLY_WORLD_TRANSFORM = True
 
 
 def open_usd_stage(usd_file: Path) -> Optional[Usd.Stage]:
@@ -50,6 +54,30 @@ def set_default_prim_if_missing(stage: Usd.Stage):
     return root_prim
 
 
+def maya_matrix_to_gf_matrix(world_matrix: list[float]) -> Gf.Matrix4d:
+    matrix = Gf.Matrix4d(1.0)
+
+    matrix.SetRow(0, Gf.Vec4d(*world_matrix[0:4]))
+    matrix.SetRow(1, Gf.Vec4d(*world_matrix[4:8]))
+    matrix.SetRow(2, Gf.Vec4d(*world_matrix[8:12]))
+    matrix.SetRow(3, Gf.Vec4d(*world_matrix[12:16]))
+
+    return matrix
+
+
+def apply_world_transform(stage: Usd.Stage, world_matrix: list[float]):
+    root_prim = stage.GetDefaultPrim()
+
+    if not root_prim:
+        print("No defaultPrim found, so world transform was not applied.")
+        return
+
+    xformable = UsdGeom.Xformable(root_prim)
+
+    transform_op = xformable.AddTransformOp(opSuffix="publishedWorldTransform")
+    transform_op.Set(maya_matrix_to_gf_matrix(world_matrix))
+
+
 def add_publish_metadata(
     stage: Usd.Stage,
     asset_name: str,
@@ -78,6 +106,7 @@ def process_exported_usd(
     version: str,
     author: str,
     source_scene: str,
+    world_matrix: list[float],
 ) -> bool:
     stage = open_usd_stage(usd_file)
 
@@ -88,6 +117,12 @@ def process_exported_usd(
 
     if not default_prim:
         return False
+
+    if APPLY_WORLD_TRANSFORM:
+        apply_world_transform(stage, world_matrix)
+        print("Applied original Maya world transform to USD root.")
+    else:
+        print("Skipped USD world transform application for debugging.")
 
     add_publish_metadata(
         stage=stage,

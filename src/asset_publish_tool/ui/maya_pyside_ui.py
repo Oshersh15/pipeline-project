@@ -6,8 +6,6 @@ from pathlib import Path
 
 import maya.cmds as cmds
 
-from asset_publish_tool.core.metadata import read_metadata
-
 if importlib.util.find_spec("PySide6"):
     from PySide6 import QtCore, QtGui, QtWidgets
     from shiboken6 import wrapInstance
@@ -128,15 +126,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         )
 
     def load_published_assets(self):
-        project_root = Path(__file__).resolve().parents[3]
-        publish_root = project_root / "published_assets"
-
         self.model_table.setRowCount(0)
         self.camera_table.setRowCount(0)
         self.light_table.setRowCount(0)
-
-        if not publish_root.exists():
-            return
 
         asset_documents = get_all_assets()
 
@@ -456,6 +448,11 @@ class PipelineToolWindow(QtWidgets.QDialog):
         for item in summary["published"]:
             output += f" - {item['name']} ({item['type']}, {item['version']})\n"
             output += "   Stored in MongoDB/GridFS\n"
+
+        output += "\n"
+        output += f"Warnings: {len(summary.get('warnings', []))}\n"
+        for item in summary.get("warnings", []):
+            output += f" - {item['name']}: {item['warning']}\n"
 
         output += "\n"
         output += f"Skipped: {len(summary['skipped'])}\n"

@@ -16,6 +16,75 @@ def _get_model_panel():
     raise RuntimeError("No model panel found for preview capture.")
 
 
+def _get_panel_camera(panel):
+    camera = cmds.modelPanel(panel, query=True, camera=True)
+
+    if cmds.objectType(camera) == "camera":
+        parent = cmds.listRelatives(camera, parent=True, fullPath=True)
+        if parent:
+            return parent[0], camera
+
+    shapes = cmds.listRelatives(camera, shapes=True, fullPath=True) or []
+    for shape in shapes:
+        if cmds.objectType(shape) == "camera":
+            return camera, shape
+
+    return camera, None
+
+
+def _store_camera_state(panel):
+    camera_transform, camera_shape = _get_panel_camera(panel)
+
+    state = {
+        "camera_transform": camera_transform,
+        "camera_shape": camera_shape,
+        "matrix": None,
+        "focal_length": None,
+        "orthographic_width": None,
+    }
+
+    if camera_transform and cmds.objExists(camera_transform):
+        state["matrix"] = cmds.xform(
+            camera_transform,
+            query=True,
+            matrix=True,
+            worldSpace=True,
+        )
+
+    if camera_shape and cmds.objExists(camera_shape):
+        if cmds.attributeQuery("focalLength", node=camera_shape, exists=True):
+            state["focal_length"] = cmds.getAttr(f"{camera_shape}.focalLength")
+
+        if cmds.attributeQuery("orthographicWidth", node=camera_shape, exists=True):
+            state["orthographic_width"] = cmds.getAttr(
+                f"{camera_shape}.orthographicWidth"
+            )
+
+    return state
+
+
+def _restore_camera_state(state):
+    camera_transform = state.get("camera_transform")
+    camera_shape = state.get("camera_shape")
+
+    if camera_transform and cmds.objExists(camera_transform) and state.get("matrix"):
+        cmds.xform(
+            camera_transform,
+            matrix=state["matrix"],
+            worldSpace=True,
+        )
+
+    if camera_shape and cmds.objExists(camera_shape):
+        if state.get("focal_length") is not None:
+            cmds.setAttr(f"{camera_shape}.focalLength", state["focal_length"])
+
+        if state.get("orthographic_width") is not None:
+            cmds.setAttr(
+                f"{camera_shape}.orthographicWidth",
+                state["orthographic_width"],
+            )
+
+
 def _collect_mesh_transforms(obj):
     mesh_transforms = []
 
@@ -94,6 +163,8 @@ def capture_viewport_preview(obj, output_path):
 
     panel = _get_model_panel()
     previous_grid_state = cmds.modelEditor(panel, query=True, grid=True)
+    previous_isolate_state = cmds.isolateSelect(panel, query=True, state=True)
+    camera_state = _store_camera_state(panel)
 
     preview_group = None
 
@@ -103,26 +174,13 @@ def capture_viewport_preview(obj, output_path):
         if not preview_group:
             raise RuntimeError(f"No mesh found for preview capture: {obj}")
 
-        cmds.hide(all=True)
-        cmds.showHidden(preview_group)
-
-        children = (
-            cmds.listRelatives(
-                preview_group,
-                allDescendents=True,
-                fullPath=True,
-            )
-            or []
-        )
-
-        for child in children:
-            if cmds.objectType(child) == "transform":
-                cmds.showHidden(child)
-
         cmds.select(preview_group, replace=True)
 
         cmds.setFocus(panel)
         cmds.modelEditor(panel, edit=True, grid=False)
+
+        cmds.isolateSelect(panel, state=True)
+        cmds.isolateSelect(panel, addSelected=True)
 
         cmds.viewSet(p=True, fit=True)
         cmds.viewFit()
@@ -140,13 +198,14 @@ def capture_viewport_preview(obj, output_path):
         )
 
     finally:
+        if panel and cmds.getPanel(typeOf=panel) == "modelPanel":
+            cmds.isolateSelect(panel, state=previous_isolate_state)
+            cmds.modelEditor(panel, edit=True, grid=previous_grid_state)
+
+        _restore_camera_state(camera_state)
+
         if preview_group and cmds.objExists(preview_group):
             cmds.delete(preview_group)
-
-        cmds.showHidden(all=True)
-
-        if panel and cmds.getPanel(typeOf=panel) == "modelPanel":
-            cmds.modelEditor(panel, edit=True, grid=previous_grid_state)
 
         if previous_selection:
             cmds.select(previous_selection, replace=True)

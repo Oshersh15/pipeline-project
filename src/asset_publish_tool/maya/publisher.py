@@ -17,22 +17,16 @@ from asset_publish_tool.maya.preview import capture_viewport_preview
 from asset_publish_tool.maya.scene_utils import (
     detect_maya_object_type,
     get_expanded_scene_selection,
-    get_mesh_transforms_from_selection,
 )
 from asset_publish_tool.usd.usd_utils import process_exported_usd
 
 
 def validate_selected_objects():
-    # 1. Load rules
-    project_root = (
-        Path(__file__).resolve().parents[3]
-    )  # gets the main project folder by going up from this file’s location
-    config_path = (
-        project_root / "config" / "validation_rules.json"
-    )  # builds the full path to the JSON config file inside the project
+    project_root = Path(__file__).resolve().parents[3]
+
+    config_path = project_root / "config" / "validation_rules.json"
     rules = load_validation_rules(config_path)
 
-    # 2. Get selection from Maya
     selection = get_expanded_scene_selection()
 
     if not selection:
@@ -43,9 +37,7 @@ def validate_selected_objects():
 
     results = []
 
-    # 3. Validate each object
     for obj in selection:
-        # Skip group-only transforms (objects with no shape nodes)
         shapes = cmds.listRelatives(obj, shapes=True)
 
         if not shapes:
@@ -71,6 +63,27 @@ def validate_selected_objects():
     return results
 
 
+def get_material_assignment_warnings(obj):
+    warnings = []
+
+    shapes = cmds.listRelatives(obj, shapes=True, fullPath=True) or []
+
+    for shape in shapes:
+        shading_groups = cmds.listConnections(shape, type="shadingEngine") or []
+        unique_shading_groups = sorted(set(shading_groups))
+
+        if len(unique_shading_groups) > 1:
+            warnings.append(
+                (
+                    f"'{obj}' uses multiple material assignments. "
+                    "Current USD export may not preserve complex or face-assigned "
+                    "material networks correctly."
+                )
+            )
+
+    return warnings
+
+
 def publish_selected_objects():
     from asset_publish_tool.core.asset import Asset
     from asset_publish_tool.core.metadata import write_metadata
@@ -86,16 +99,16 @@ def publish_selected_objects():
     summary = {
         "published": [],
         "skipped": [],
+        "warnings": [],
     }
 
     if not selection:
         print("No objects selected.")
         return summary
 
-    publish_root = project_root / "published_assets"
+    publish_root = project_root / "tmp_publish_cache"
 
     for obj in selection:
-        # Skip group-only transforms (objects with no shape nodes)
         shapes = cmds.listRelatives(obj, shapes=True)
 
         if not shapes:
@@ -128,18 +141,38 @@ def publish_selected_objects():
         asset_type = result["type"]
         asset_name = result["name"]
 
+        material_warnings = get_material_assignment_warnings(obj)
+
+        for warning in material_warnings:
+            print(f"Warning: {warning}")
+
+            summary["warnings"].append(
+                {
+                    "name": asset_name,
+                    "warning": warning,
+                }
+            )
+
+        source_scene = cmds.file(query=True, sceneName=True) or "unsaved_scene"
+        author = "osher"
+
         version = get_next_version(publish_root, asset_type, asset_name)
 
         version_path = publish_root / asset_type / asset_name / version
         version_path.mkdir(parents=True, exist_ok=True)
 
         obj_export_file = None
-        usd_export_file = version_path / f"{asset_name}.usd"
+        usd_export_file = version_path / f"{asset_name}.usda"
 
         cmds.select(obj, replace=True)
 
-        # Export OBJ only for model assets.
-        # OBJ is a geometry format, so cameras and lights should not be exported as OBJ.
+        world_matrix = cmds.xform(
+            obj,
+            query=True,
+            matrix=True,
+            worldSpace=True,
+        )
+
         if asset_type == "model":
             obj_export_file = version_path / f"{asset_name}.obj"
 
@@ -154,13 +187,15 @@ def publish_selected_objects():
                 exportSelected=True,
             )
 
-        # Export USD for all supported asset types.
-        # USD can represent models, cameras, and lights, so this is the main pipeline export.
-        cmds.file(
-            str(usd_export_file),
-            force=True,
-            type="USD Export",
-            exportSelected=True,
+        cmds.mayaUSDExport(
+            file=str(usd_export_file),
+            selection=True,
+            exportRoots=[obj],
+            shadingMode="useRegistry",
+            convertMaterialsTo=["UsdPreviewSurface"],
+            exportUVs=True,
+            exportColorSets=True,
+            defaultUSDFormat="usda",
         )
 
         usd_processed = process_exported_usd(
@@ -168,8 +203,9 @@ def publish_selected_objects():
             asset_name=asset_name,
             asset_type=asset_type,
             version=version,
-            author="osher",
-            source_scene=cmds.file(query=True, sceneName=True) or "unsaved_scene",
+            author=author,
+            source_scene=source_scene,
+            world_matrix=world_matrix,
         )
 
         if not usd_processed:
@@ -205,10 +241,10 @@ def publish_selected_objects():
         asset = Asset(
             name=asset_name,
             asset_type=asset_type,
-            source_scene=cmds.file(query=True, sceneName=True) or "unsaved_scene",
+            source_scene=source_scene,
             version=version,
             publish_path=str(version_path),
-            author="osher",
+            author=author,
             exports={
                 "obj": str(obj_export_file),
                 "usd": str(usd_export_file),
@@ -224,15 +260,9 @@ def publish_selected_objects():
         try:
             mongo_id = save_asset(asset.to_mongo_dict())
             print(f"Saved asset metadata to MongoDB: {mongo_id}")
+
             shutil.rmtree(version_path)
-            asset_folder = version_path.parent
-            asset_type_folder = asset_folder.parent
 
-            if asset_folder.exists() and not any(asset_folder.iterdir()):
-                asset_folder.rmdir()
-
-            if asset_type_folder.exists() and not any(asset_type_folder.iterdir()):
-                asset_type_folder.rmdir()
         except Exception as e:
             print(f"MongoDB save failed for {asset_name}: {e}")
 
@@ -244,10 +274,7 @@ def publish_selected_objects():
             }
         )
 
-    # Reselect only skipped objects (using full Maya paths)
     skipped_objects = [item["name"] for item in summary["skipped"]]
-
-    # Make sure objects still exist
     skipped_objects = [obj for obj in skipped_objects if cmds.objExists(obj)]
 
     if skipped_objects:
