@@ -20,6 +20,7 @@ from asset_publish_tool.auth.session import (
     get_current_user,
 )
 from asset_publish_tool.database.asset_repository import get_all_assets
+from asset_publish_tool.maya.importer import import_asset_package
 from asset_publish_tool.maya.publisher import (
     publish_selected_objects,
     validate_selected_objects,
@@ -106,6 +107,8 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.search_bar.setPlaceholderText("Search published assets...")
         self.open_folder_button = QtWidgets.QPushButton("Open Selected Publish Folder")
         self.open_folder_button.setEnabled(False)
+        self.import_asset_button = QtWidgets.QPushButton("Import Selected Asset")
+        self.import_asset_button.setEnabled(False)
         self.selected_publish_path = ""
         self.output = QtWidgets.QTextEdit()
         self.output.setReadOnly(True)
@@ -129,6 +132,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         layout.addWidget(self.search_bar)
         layout.addWidget(self.tabs)
         layout.addWidget(self.open_folder_button)
+        layout.addWidget(self.import_asset_button)
 
         self.load_published_assets()
 
@@ -169,6 +173,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.open_folder_button.clicked.connect(self.open_selected_publish_folder)
         self.search_bar.textChanged.connect(self.filter_asset_tables)
+        self.import_asset_button.clicked.connect(self.import_selected_asset)
         self.logout_button.clicked.connect(self.logout)
 
         self.model_table.itemSelectionChanged.connect(
@@ -382,6 +387,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         if not selected_rows:
             self.selected_publish_path = ""
             self.open_folder_button.setEnabled(False)
+            self.import_asset_button.setEnabled(False)
             return
 
         row = selected_rows[0].row()
@@ -404,6 +410,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.selected_publish_path = publish_path
         self.open_folder_button.setEnabled(bool(publish_path))
+        self.import_asset_button.setEnabled(bool(name_item.data(QtCore.Qt.UserRole)))
 
         matching_object = self.find_scene_object_by_asset_name(asset_name)
 
@@ -533,6 +540,41 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.load_published_assets()
         self.filter_asset_tables()
         self.output.setText(output)
+
+    def import_selected_asset(self):
+        current_table = self.tabs.currentWidget()
+        selected_rows = current_table.selectionModel().selectedRows()
+
+        if not selected_rows:
+            self.output.setText("No published asset selected.")
+            return
+
+        row = selected_rows[0].row()
+
+        if current_table == self.model_table:
+            name_column = 1
+        else:
+            name_column = 0
+
+        name_item = current_table.item(row, name_column)
+
+        if not name_item:
+            self.output.setText("Could not read selected asset.")
+            return
+
+        package_file_id = name_item.data(QtCore.Qt.UserRole)
+
+        if not package_file_id:
+            self.output.setText("Selected asset has no stored package file ID.")
+            return
+
+        try:
+            imported_file = import_asset_package(package_file_id)
+        except Exception as e:
+            self.output.setText(f"Import failed:\n{e}")
+            return
+
+        self.output.setText(f"Imported asset from:\n{imported_file}")
 
     def logout(self):
         clear_current_user()
