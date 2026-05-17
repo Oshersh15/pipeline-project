@@ -3,6 +3,8 @@ from pathlib import Path
 
 import maya.cmds as cmds
 
+from asset_publish_tool.auth.roles import has_permission
+from asset_publish_tool.auth.session import get_current_user_role
 from asset_publish_tool.core.validator import (
     load_validation_rules,
     validate_scene_object,
@@ -22,6 +24,16 @@ from asset_publish_tool.usd.usd_utils import process_exported_usd
 
 
 def validate_selected_objects():
+    current_role = get_current_user_role()
+
+    if current_role is None:
+        raise PermissionError("No authenticated user session found.")
+
+    if not has_permission(current_role, "validate_assets"):
+        raise PermissionError(
+            f"Current user role '{current_role}' does not have permission to validate assets."
+        )
+
     project_root = Path(__file__).resolve().parents[3]
 
     config_path = project_root / "config" / "validation_rules.json"
@@ -88,6 +100,16 @@ def publish_selected_objects():
     from asset_publish_tool.core.asset import Asset
     from asset_publish_tool.core.metadata import write_metadata
     from asset_publish_tool.core.versioning import get_next_version
+
+    current_role = get_current_user_role()
+
+    if current_role is None:
+        raise PermissionError("No authenticated user session found.")
+
+    if not has_permission(current_role, "publish_assets"):
+        raise PermissionError(
+            f"Current user role '{current_role}' does not have permission to publish assets."
+        )
 
     project_root = Path(__file__).resolve().parents[3]
 

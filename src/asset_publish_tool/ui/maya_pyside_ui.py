@@ -15,6 +15,10 @@ else:
 
 import maya.OpenMayaUI as omui
 
+from asset_publish_tool.auth.session import (
+    clear_current_user,
+    get_current_user,
+)
 from asset_publish_tool.database.asset_repository import get_all_assets
 from asset_publish_tool.maya.publisher import (
     publish_selected_objects,
@@ -26,6 +30,50 @@ from asset_publish_tool.maya.scene_utils import fix_selected_object_names
 def get_maya_main_window():
     main_window_ptr = omui.MQtUtil.mainWindow()
     return wrapInstance(int(main_window_ptr), QtWidgets.QWidget)
+
+
+class LoginDialog(QtWidgets.QDialog):
+    def __init__(self, parent=get_maya_main_window()):
+        super().__init__(parent)
+
+        self.setWindowTitle("Asset Publish Login")
+        self.setMinimumWidth(300)
+
+        self.username_input = QtWidgets.QLineEdit()
+        self.username_input.setPlaceholderText("Username")
+
+        self.password_input = QtWidgets.QLineEdit()
+        self.password_input.setPlaceholderText("Password")
+        self.password_input.setEchoMode(QtWidgets.QLineEdit.Password)
+
+        self.message_label = QtWidgets.QLabel("")
+        self.message_label.setWordWrap(True)
+
+        self.login_button = QtWidgets.QPushButton("Login")
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(QtWidgets.QLabel("Log in to Asset Publish Tool"))
+        layout.addWidget(self.username_input)
+        layout.addWidget(self.password_input)
+        layout.addWidget(self.message_label)
+        layout.addWidget(self.login_button)
+
+        self.login_button.clicked.connect(self.attempt_login)
+
+    def attempt_login(self):
+        from asset_publish_tool.auth.login import login
+
+        username = self.username_input.text().strip()
+        password = self.password_input.text()
+
+        if not username or not password:
+            self.message_label.setText("Please enter a username and password.")
+            return
+
+        if login(username, password):
+            self.accept()
+        else:
+            self.message_label.setText("Login failed. Check username/password.")
 
 
 class PipelineToolWindow(QtWidgets.QDialog):
@@ -41,6 +89,15 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
     def build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
+
+        current_user = get_current_user()
+
+        username = current_user.get("username", "Unknown")
+        role = current_user.get("role", "Unknown")
+
+        self.user_label = QtWidgets.QLabel(f"Logged in as: {username} ({role})")
+
+        self.logout_button = QtWidgets.QPushButton("Logout")
 
         self.validate_button = QtWidgets.QPushButton("Validate Selected Objects")
         self.fix_button = QtWidgets.QPushButton("Fix Invalid Names")
@@ -63,6 +120,8 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.tabs.addTab(self.camera_table, "Cameras")
         self.tabs.addTab(self.light_table, "Lights")
 
+        layout.addWidget(self.user_label)
+        layout.addWidget(self.logout_button)
         layout.addWidget(self.validate_button)
         layout.addWidget(self.fix_button)
         layout.addWidget(self.publish_button)
@@ -110,6 +169,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.open_folder_button.clicked.connect(self.open_selected_publish_folder)
         self.search_bar.textChanged.connect(self.filter_asset_tables)
+        self.logout_button.clicked.connect(self.logout)
 
         self.model_table.itemSelectionChanged.connect(
             lambda: self.on_table_selection_changed(self.model_table, show_preview=True)
@@ -414,7 +474,11 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.output.setText(output)
 
     def run_validation(self):
-        results = validate_selected_objects()
+        try:
+            results = validate_selected_objects()
+        except PermissionError as e:
+            self.output.setText(f"Permission denied:\n{e}")
+            return
 
         valid_count = sum(1 for r in results if r["valid"])
         invalid_count = len(results) - valid_count
@@ -439,7 +503,11 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.output.setText(output)
 
     def run_publish(self):
-        summary = publish_selected_objects()
+        try:
+            summary = publish_selected_objects()
+        except PermissionError as e:
+            self.output.setText(f"Permission denied:\n{e}")
+            return
 
         output = "Publish Summary\n"
         output += "=" * 30 + "\n\n"
@@ -466,6 +534,13 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.filter_asset_tables()
         self.output.setText(output)
 
+    def logout(self):
+        clear_current_user()
+
+        self.close()
+
+        show_ui()
+
 
 window = None
 
@@ -478,6 +553,12 @@ def show_ui():
         window.deleteLater()
     except Exception:
         pass
+
+    if not get_current_user():
+        login_dialog = LoginDialog()
+
+        if login_dialog.exec_() != QtWidgets.QDialog.Accepted:
+            return
 
     window = PipelineToolWindow()
     window.show()

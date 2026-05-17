@@ -1,18 +1,51 @@
+from typing import Optional
+
 from pymongo import MongoClient
 
-MONGO_URI = "mongodb://localhost:27017/"
+HOST = "localhost"
+PORT = 27017
 DATABASE_NAME = "asset_publish_tool_db"
 
 
-def get_client():
-    client = MongoClient(MONGO_URI)
+def build_mongo_uri(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> str:
+    if username and password:
+        return f"mongodb://{username}:{password}@{HOST}:{PORT}/{DATABASE_NAME}"
+
+    return f"mongodb://{HOST}:{PORT}/"
+
+
+def get_client(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+):
+    uri = build_mongo_uri(username, password)
+    client = MongoClient(uri)
     return client
 
 
-def get_database():
-    client = get_client()
+def get_database(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+):
+    client = get_client(username, password)
     db = client[DATABASE_NAME]
     return db
+
+
+def test_connection(
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+) -> bool:
+    try:
+        client = get_client(username, password)
+        client.admin.command("ping")
+        return True
+    except Exception as e:
+        print(f"MongoDB connection failed: {e}")
+        return False
 
 
 if __name__ == "__main__":

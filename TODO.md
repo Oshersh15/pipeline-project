@@ -17,7 +17,9 @@
 - [x] Metadata generation
 - [x] OBJ export
 - [x] USD export
+- [x] USD transform preservation
 - [x] Viewport preview generation
+- [x] Material assignment warnings
 - [ ] Improve publish summaries
 - [ ] Test publishing with larger scenes
 
@@ -28,16 +30,24 @@
 - [x] Podman MongoDB workflow
 - [x] Backend metadata storage
 - [x] Backend-driven asset loading in UI
+- [x] MongoDB user authentication
+- [x] Session tracking
+- [x] Permission-based publish validation
 - [ ] Investigate storing asset packages using GridFS
 - [ ] Improve backend error handling
+- [ ] Add role-aware UI behaviour
+- [ ] Add admin user-management tools
 
 ---
 
 ## UI
+- [x] Asset search/filter
+- [x] Login dialog
+- [x] Logout workflow
 - [ ] Separate validation and database sections into tabs
 - [ ] Improve layout organisation
 - [ ] Improve table refresh behaviour
-- [ ] Add asset filtering/search
+- [ ] Add import/load asset into Maya workflow
 
 ---
 
@@ -50,6 +60,5 @@
 ---
 
 ## Future Investigation
-- [ ] Authentication/user system
 - [ ] Remote database deployment
 - [ ] Cross-DCC workflow extensions
