@@ -15,6 +15,7 @@ else:
 
 import maya.OpenMayaUI as omui
 
+from asset_publish_tool.auth.roles import has_permission
 from asset_publish_tool.auth.session import (
     clear_current_user,
     get_current_user,
@@ -31,6 +32,74 @@ from asset_publish_tool.maya.scene_utils import fix_selected_object_names
 def get_maya_main_window():
     main_window_ptr = omui.MQtUtil.mainWindow()
     return wrapInstance(int(main_window_ptr), QtWidgets.QWidget)
+
+
+class InitialSetupDialog(QtWidgets.QDialog):
+    def __init__(self, parent=get_maya_main_window()):
+        super().__init__(parent)
+
+        self.setWindowTitle("Initial Setup")
+        self.setMinimumWidth(300)
+
+        self.username_input = QtWidgets.QLineEdit()
+        self.username_input.setPlaceholderText("Admin Username")
+
+        self.password_input = QtWidgets.QLineEdit()
+        self.password_input.setPlaceholderText("Admin Password")
+        self.password_input.setEchoMode(QtWidgets.QLineEdit.Password)
+
+        self.message_label = QtWidgets.QLabel("")
+
+        self.create_button = QtWidgets.QPushButton("Create Admin")
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        layout.addWidget(
+            QtWidgets.QLabel(
+                "No admin user exists.\nCreate the initial administrator account."
+            )
+        )
+
+        layout.addWidget(self.username_input)
+        layout.addWidget(self.password_input)
+        layout.addWidget(self.message_label)
+        layout.addWidget(self.create_button)
+
+        self.create_button.clicked.connect(self.create_admin)
+
+    def create_admin(self):
+        from asset_publish_tool.auth.user_manager import create_user
+        from asset_publish_tool.database.connection import get_database
+
+        username = self.username_input.text().strip()
+        password = self.password_input.text()
+
+        if not username or not password:
+            self.message_label.setText("Please enter username and password.")
+            return
+
+        db = get_database()
+
+        created = create_user(
+            username=username,
+            password=password,
+            role="app_admin",
+            db=db,
+        )
+
+        if not created:
+            self.message_label.setText("User already exists.")
+            return
+
+        from asset_publish_tool.auth.login import login
+
+        success = login(username, password)
+
+        if not success:
+            self.message_label.setText("Automatic login failed.")
+            return
+
+        self.accept()
 
 
 class LoginDialog(QtWidgets.QDialog):
@@ -87,6 +156,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.build_ui()
         self.connect_signals()
+        self.apply_role_permissions()
 
     def build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
@@ -115,6 +185,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.tabs = QtWidgets.QTabWidget()
 
+        current_user = get_current_user()
+        current_role = current_user.get("role") if current_user else None
+
         self.model_table = self._create_asset_table(show_preview=True)
         self.camera_table = self._create_asset_table(show_preview=False)
         self.light_table = self._create_asset_table(show_preview=False)
@@ -122,6 +195,32 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.tabs.addTab(self.model_table, "Models")
         self.tabs.addTab(self.camera_table, "Cameras")
         self.tabs.addTab(self.light_table, "Lights")
+
+        if current_role == "app_admin":
+            self.admin_tab = QtWidgets.QWidget()
+
+            admin_layout = QtWidgets.QVBoxLayout(self.admin_tab)
+
+            self.new_username_input = QtWidgets.QLineEdit()
+            self.new_username_input.setPlaceholderText("Username")
+
+            self.new_password_input = QtWidgets.QLineEdit()
+            self.new_password_input.setPlaceholderText("Password")
+            self.new_password_input.setEchoMode(QtWidgets.QLineEdit.Password)
+
+            self.role_dropdown = QtWidgets.QComboBox()
+            self.role_dropdown.addItems(["viewer", "artist", "app_admin"])
+
+            self.create_user_button = QtWidgets.QPushButton("Create User")
+
+            admin_layout.addWidget(QtWidgets.QLabel("Admin Tools"))
+
+            admin_layout.addWidget(self.new_username_input)
+            admin_layout.addWidget(self.new_password_input)
+            admin_layout.addWidget(self.role_dropdown)
+            admin_layout.addWidget(self.create_user_button)
+
+            self.tabs.addTab(self.admin_tab, "Admin")
 
         layout.addWidget(self.user_label)
         layout.addWidget(self.logout_button)
@@ -184,11 +283,68 @@ class PipelineToolWindow(QtWidgets.QDialog):
                 self.camera_table, show_preview=False
             )
         )
+
         self.light_table.itemSelectionChanged.connect(
             lambda: self.on_table_selection_changed(
                 self.light_table, show_preview=False
             )
         )
+
+        if hasattr(self, "create_user_button"):
+            self.create_user_button.clicked.connect(self.create_new_user)
+
+    def create_new_user(self):
+        from asset_publish_tool.auth.user_manager import create_user
+        from asset_publish_tool.database.connection import get_database
+
+        username = self.new_username_input.text().strip()
+        password = self.new_password_input.text()
+        role = self.role_dropdown.currentText()
+
+        if not username or not password:
+            self.output.setText("Username and password are required.")
+            return
+
+        db = get_database()
+
+        created = create_user(
+            username=username,
+            password=password,
+            role=role,
+            db=db,
+        )
+
+        if not created:
+            self.output.setText(f"User '{username}' already exists.")
+            return
+
+        self.output.setText(f"Created user '{username}' with role '{role}'.")
+
+        self.new_username_input.clear()
+        self.new_password_input.clear()
+
+    def apply_role_permissions(self):
+        current_user = get_current_user()
+
+        if not current_user:
+            self.validate_button.setEnabled(False)
+            self.fix_button.setEnabled(False)
+            self.publish_button.setEnabled(False)
+            self.open_folder_button.setEnabled(False)
+            return
+
+        role = current_user.get("role")
+
+        can_validate = has_permission(role, "validate_assets")
+        can_publish = has_permission(role, "publish_assets")
+        can_view = has_permission(role, "view_assets")
+
+        self.validate_button.setEnabled(can_validate)
+        self.fix_button.setEnabled(can_validate)
+        self.publish_button.setEnabled(can_publish)
+
+        self.search_bar.setEnabled(can_view)
+        self.tabs.setEnabled(can_view)
 
     def load_published_assets(self):
         self.model_table.setRowCount(0)
@@ -589,12 +745,22 @@ window = None
 
 def show_ui():
     global window
+    from asset_publish_tool.auth.user_manager import admin_exists
+    from asset_publish_tool.database.connection import get_database
 
     try:
         window.close()
         window.deleteLater()
     except Exception:
         pass
+
+    db = get_database()
+
+    if not admin_exists(db):
+        setup_dialog = InitialSetupDialog()
+
+        if setup_dialog.exec_() != QtWidgets.QDialog.Accepted:
+            return
 
     if not get_current_user():
         login_dialog = LoginDialog()
