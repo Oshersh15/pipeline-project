@@ -15,6 +15,7 @@ else:
 
 import maya.OpenMayaUI as omui
 
+from asset_publish_tool.auth.roles import has_permission
 from asset_publish_tool.auth.session import (
     clear_current_user,
     get_current_user,
@@ -154,6 +155,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.build_ui()
         self.connect_signals()
+        self.apply_role_permissions()
 
     def build_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
@@ -174,6 +176,8 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.search_bar.setPlaceholderText("Search published assets...")
         self.open_folder_button = QtWidgets.QPushButton("Open Selected Publish Folder")
         self.open_folder_button.setEnabled(False)
+        self.import_asset_button = QtWidgets.QPushButton("Import Selected Asset")
+        self.import_asset_button.setEnabled(False)
         self.selected_publish_path = ""
         self.output = QtWidgets.QTextEdit()
         self.output.setReadOnly(True)
@@ -226,6 +230,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         layout.addWidget(self.search_bar)
         layout.addWidget(self.tabs)
         layout.addWidget(self.open_folder_button)
+        layout.addWidget(self.import_asset_button)
 
         self.load_published_assets()
 
@@ -315,6 +320,29 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.new_username_input.clear()
         self.new_password_input.clear()
+
+    def apply_role_permissions(self):
+        current_user = get_current_user()
+
+        if not current_user:
+            self.validate_button.setEnabled(False)
+            self.fix_button.setEnabled(False)
+            self.publish_button.setEnabled(False)
+            self.open_folder_button.setEnabled(False)
+            return
+
+        role = current_user.get("role")
+
+        can_validate = has_permission(role, "validate_assets")
+        can_publish = has_permission(role, "publish_assets")
+        can_view = has_permission(role, "view_assets")
+
+        self.validate_button.setEnabled(can_validate)
+        self.fix_button.setEnabled(can_validate)
+        self.publish_button.setEnabled(can_publish)
+
+        self.search_bar.setEnabled(can_view)
+        self.tabs.setEnabled(can_view)
 
     def load_published_assets(self):
         self.model_table.setRowCount(0)
@@ -513,6 +541,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         if not selected_rows:
             self.selected_publish_path = ""
             self.open_folder_button.setEnabled(False)
+            self.import_asset_button.setEnabled(False)
             return
 
         row = selected_rows[0].row()
@@ -535,6 +564,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.selected_publish_path = publish_path
         self.open_folder_button.setEnabled(bool(publish_path))
+        self.import_asset_button.setEnabled(bool(name_item.data(QtCore.Qt.UserRole)))
 
         matching_object = self.find_scene_object_by_asset_name(asset_name)
 
