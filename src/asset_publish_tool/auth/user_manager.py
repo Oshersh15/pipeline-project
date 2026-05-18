@@ -14,6 +14,14 @@ def get_users_collection(db: Database):
     return collection
 
 
+def admin_exists(db):
+    users_collection = db["users"]
+
+    admin = users_collection.find_one({"role": "app_admin"})
+
+    return admin is not None
+
+
 def create_user(
     username: str,
     password: str,
