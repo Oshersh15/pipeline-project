@@ -1,6 +1,9 @@
 import re
+from pathlib import Path
 
 import maya.cmds as cmds
+
+from asset_publish_tool.core.validator import load_validation_rules
 
 
 def clean_name(name):
@@ -49,6 +52,38 @@ def detect_maya_object_type(obj):
     return "unknown"
 
 
+def pattern_to_suffix(pattern):
+    if pattern.startswith(".*") and pattern.endswith("$"):
+        return pattern[2:-1]
+
+    return f"_{pattern}"
+
+
+def get_validation_rules():
+    project_root = Path(__file__).resolve().parents[3]
+    config_path = project_root / "config" / "validation_rules.json"
+    return load_validation_rules(config_path)
+
+
+def get_suffix_for_type(object_type):
+    rules = get_validation_rules()
+    object_rule = rules["scene_object_rules"].get(object_type, {})
+    pattern = object_rule.get("name_pattern", f".*_{object_type}$")
+
+    return pattern_to_suffix(pattern)
+
+
+def get_all_configured_suffixes():
+    rules = get_validation_rules()
+    suffixes = []
+
+    for rule_data in rules["scene_object_rules"].values():
+        pattern = rule_data.get("name_pattern", "")
+        suffixes.append(pattern_to_suffix(pattern))
+
+    return suffixes
+
+
 def build_suggested_name(obj):
     clean = clean_name(obj)
     detected_type = detect_maya_object_type(obj)
@@ -56,7 +91,7 @@ def build_suggested_name(obj):
     if detected_type == "unknown":
         return clean
 
-    suffix = f"_{detected_type}"
+    suffix = get_suffix_for_type(detected_type)
 
     # If it already has the correct suffix, keep it
     if clean.endswith(suffix):
@@ -73,7 +108,7 @@ def build_suggested_name(obj):
             break
 
     # Remove known wrong suffixes, e.g. chair_light -> chair
-    for existing_suffix in ["_model", "_light", "_camera", "_rig"]:
+    for existing_suffix in get_all_configured_suffixes():
         if clean.endswith(existing_suffix):
             clean = clean[: -len(existing_suffix)]
 

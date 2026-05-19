@@ -146,6 +146,22 @@ class LoginDialog(QtWidgets.QDialog):
             self.message_label.setText("Login failed. Check username/password.")
 
 
+def pattern_to_suffix(pattern):
+    if pattern.startswith(".*") and pattern.endswith("$"):
+        return pattern[2:-1]
+
+    return pattern
+
+
+def suffix_to_pattern(suffix):
+    suffix = suffix.strip()
+
+    if not suffix:
+        return ".*$"
+
+    return f".*{suffix}$"
+
+
 class PipelineToolWindow(QtWidgets.QDialog):
     def __init__(self, parent=get_maya_main_window()):
         super().__init__(parent)
@@ -220,7 +236,61 @@ class PipelineToolWindow(QtWidgets.QDialog):
             admin_layout.addWidget(self.role_dropdown)
             admin_layout.addWidget(self.create_user_button)
 
+            from asset_publish_tool.core.validator import (
+                AVAILABLE_VALIDATION_CHECKS,
+                load_validation_rules,
+            )
+
+            rules_label = QtWidgets.QLabel("Validation Rules")
+            admin_layout.addWidget(rules_label)
+
+            self.asset_type_dropdown = QtWidgets.QComboBox()
+            admin_layout.addWidget(self.asset_type_dropdown)
+
+            project_root = Path(__file__).resolve().parents[3]
+            config_path = project_root / "config" / "validation_rules.json"
+
+            self.validation_rules_path = config_path
+            self.validation_rules = load_validation_rules(config_path)
+
+            scene_rules = self.validation_rules["scene_object_rules"]
+
+            for asset_type in scene_rules.keys():
+                self.asset_type_dropdown.addItem(asset_type)
+
+            admin_layout.addWidget(QtWidgets.QLabel("Naming Rules"))
+
+            self.use_default_suffix_checkbox = QtWidgets.QCheckBox(
+                "Use default suffix based on Maya object type"
+            )
+            self.use_default_suffix_checkbox.setChecked(True)
+            admin_layout.addWidget(self.use_default_suffix_checkbox)
+
+            admin_layout.addWidget(QtWidgets.QLabel("Custom suffix"))
+
+            self.name_pattern_input = QtWidgets.QLineEdit()
+            self.name_pattern_input.setPlaceholderText("e.g. _model")
+            admin_layout.addWidget(self.name_pattern_input)
+
+            self.validation_checkboxes = {}
+
+            for check_name in AVAILABLE_VALIDATION_CHECKS:
+                checkbox = QtWidgets.QCheckBox(check_name)
+
+                self.validation_checkboxes[check_name] = checkbox
+
+                admin_layout.addWidget(checkbox)
+
+            self.save_validation_rules_button = QtWidgets.QPushButton(
+                "Save Validation Rules"
+            )
+
+            admin_layout.addWidget(self.save_validation_rules_button)
+
             self.tabs.addTab(self.admin_tab, "Admin")
+
+        if self.asset_type_dropdown.count() > 0:
+            self.load_validation_rule_ui(self.asset_type_dropdown.currentText())
 
         layout.addWidget(self.user_label)
         layout.addWidget(self.logout_button)
@@ -293,6 +363,21 @@ class PipelineToolWindow(QtWidgets.QDialog):
         if hasattr(self, "create_user_button"):
             self.create_user_button.clicked.connect(self.create_new_user)
 
+        if hasattr(self, "asset_type_dropdown"):
+            self.asset_type_dropdown.currentTextChanged.connect(
+                self.load_validation_rule_ui
+            )
+
+        if hasattr(self, "save_validation_rules_button"):
+            self.save_validation_rules_button.clicked.connect(
+                self.save_validation_rules
+            )
+
+        if hasattr(self, "use_default_suffix_checkbox"):
+            self.use_default_suffix_checkbox.stateChanged.connect(
+                self.update_suffix_input_state
+            )
+
     def create_new_user(self):
         from asset_publish_tool.auth.user_manager import create_user
         from asset_publish_tool.database.connection import get_database
@@ -345,6 +430,71 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.search_bar.setEnabled(can_view)
         self.tabs.setEnabled(can_view)
+
+    def load_validation_rule_ui(self, asset_type):
+        scene_rules = self.validation_rules["scene_object_rules"]
+
+        rule_data = scene_rules.get(asset_type, {})
+
+        self.name_pattern_input.setText(
+            pattern_to_suffix(rule_data.get("name_pattern", ""))
+        )
+
+        required_checks = rule_data.get(
+            "required_checks",
+            [],
+        )
+
+        for check_name, checkbox in self.validation_checkboxes.items():
+            checkbox.setChecked(check_name in required_checks)
+
+        default_suffix = f"_{asset_type}"
+        current_suffix = self.name_pattern_input.text().strip()
+
+        use_default_suffix = current_suffix == default_suffix
+
+        self.use_default_suffix_checkbox.setChecked(use_default_suffix)
+        self.update_suffix_input_state()
+
+    def update_suffix_input_state(self):
+        use_default = self.use_default_suffix_checkbox.isChecked()
+
+        self.name_pattern_input.setEnabled(not use_default)
+
+    def save_validation_rules(self):
+        import json
+
+        asset_type = self.asset_type_dropdown.currentText()
+
+        scene_rules = self.validation_rules["scene_object_rules"]
+
+        if asset_type not in scene_rules:
+            self.output.setText(f"Unknown asset type: {asset_type}")
+            return
+
+        enabled_checks = []
+
+        for check_name, checkbox in self.validation_checkboxes.items():
+            if checkbox.isChecked():
+                enabled_checks.append(check_name)
+
+        if self.use_default_suffix_checkbox.isChecked():
+            suffix = f"_{asset_type}"
+        else:
+            suffix = self.name_pattern_input.text().strip()
+
+        scene_rules[asset_type]["name_pattern"] = suffix_to_pattern(suffix)
+
+        scene_rules[asset_type]["required_checks"] = enabled_checks
+
+        with open(self.validation_rules_path, "w") as file:
+            json.dump(
+                self.validation_rules,
+                file,
+                indent=2,
+            )
+
+        self.output.setText(f"Saved validation rules for '{asset_type}'.")
 
     def load_published_assets(self):
         self.model_table.setRowCount(0)

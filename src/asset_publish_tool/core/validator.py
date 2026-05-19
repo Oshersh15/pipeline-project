@@ -2,12 +2,17 @@ import json
 import re
 from pathlib import Path
 
+AVAILABLE_VALIDATION_CHECKS = [
+    "lowercase_name",
+    "no_spaces",
+    "valid_characters",
+]
+
 
 class ValidationError(Exception):
     pass
 
 
-# 1. Load config file
 def load_validation_rules(config_path: Path) -> dict:
     if not config_path.exists():
         raise FileNotFoundError(f"Validation config not found: {config_path}")
@@ -16,7 +21,6 @@ def load_validation_rules(config_path: Path) -> dict:
         return json.load(file)
 
 
-# 2. Identify object type using regex
 def identify_object_type(object_name: str, rules: dict):
     object_rules = rules["scene_object_rules"]
 
@@ -29,38 +33,34 @@ def identify_object_type(object_name: str, rules: dict):
     return None
 
 
-# 3. Basic name validation
-def validate_basic_name_rules(object_name: str) -> list[str]:
+def validate_name_checks(object_name: str, required_checks: list[str]) -> list[str]:
     errors = []
 
     if not object_name:
         errors.append("Name cannot be empty.")
+        return errors
 
-    if " " in object_name:
+    if "no_spaces" in required_checks and " " in object_name:
         errors.append("Name must not contain spaces.")
 
-    if object_name != object_name.lower():
+    if "lowercase_name" in required_checks and object_name != object_name.lower():
         errors.append("Name must be lowercase.")
 
-    if not re.match(r"^[a-z0-9_]+$", object_name):
-        errors.append(
-            "Name can only contain lowercase letters, numbers, and underscores."
-        )
+    if "valid_characters" in required_checks:
+        if not re.match(r"^[A-Za-z0-9_]+$", object_name):
+            errors.append("Name can only contain letters, numbers, and underscores.")
 
     return errors
 
 
-# 4. Full validation per object
 def validate_scene_object(object_name: str, rules: dict, maya_object_type=None) -> dict:
     errors = []
 
-    # Type suggested by the object name, e.g. chair_light -> light
     name_object_type = identify_object_type(object_name, rules)
 
     if name_object_type is None:
         errors.append("Object name does not match any known type pattern.")
 
-    # If Maya type was provided, compare it against the name-based type
     if maya_object_type and maya_object_type != "unknown":
         object_type = maya_object_type
 
@@ -80,11 +80,11 @@ def validate_scene_object(object_name: str, rules: dict, maya_object_type=None) 
             "errors": errors,
         }
 
-    # Basic name checks
-    name_errors = validate_basic_name_rules(object_name)
-    errors.extend(name_errors)
-
     object_rule = rules["scene_object_rules"].get(object_type, {})
+    required_checks = object_rule.get("required_checks", [])
+
+    name_errors = validate_name_checks(object_name, required_checks)
+    errors.extend(name_errors)
 
     return {
         "name": object_name,
