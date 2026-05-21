@@ -98,7 +98,7 @@ def build_suggested_name(obj):
         return clean
 
     # Handle names like main_camera1 -> main_1_camera
-    for known_type in ["model", "light", "camera", "rig"]:
+    for known_type in ["model", "light", "camera"]:
         match = re.match(rf"^(.*)_{known_type}(\d+)$", clean)
 
         if match:
@@ -131,7 +131,7 @@ def make_unique_name(suggested_name, current_obj=None):
     if not matches:
         return suggested_name, ""
 
-    match = re.match(r"^(.*?)(?:_(\d+))?_(model|camera|light|rig)$", suggested_name)
+    match = re.match(r"^(.*?)(?:_(\d+))?_(model|camera|light)$", suggested_name)
 
     if not match:
         counter = 1

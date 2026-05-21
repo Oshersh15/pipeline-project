@@ -162,6 +162,18 @@ def suffix_to_pattern(suffix):
     return f".*{suffix}$"
 
 
+class AdminSettingsDialog(QtWidgets.QDialog):
+    def __init__(self, admin_widget, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Admin Settings")
+        self.resize(500, 600)
+
+        layout = QtWidgets.QVBoxLayout(self)
+
+        layout.addWidget(admin_widget)
+
+
 class PipelineToolWindow(QtWidgets.QDialog):
     def __init__(self, parent=get_maya_main_window()):
         super().__init__(parent)
@@ -185,6 +197,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.user_label = QtWidgets.QLabel(f"Logged in as: {username} ({role})")
 
         self.logout_button = QtWidgets.QPushButton("Logout")
+        self.admin_settings_button = QtWidgets.QPushButton("Admin Settings")
 
         self.validate_button = QtWidgets.QPushButton("Validate Selected Objects")
         self.fix_button = QtWidgets.QPushButton("Fix Invalid Names")
@@ -213,115 +226,213 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.tabs.addTab(self.light_table, "Lights")
 
         if current_role == "app_admin":
-            self.admin_tab = QtWidgets.QWidget()
+            self.build_admin_settings_ui()
 
-            admin_layout = QtWidgets.QVBoxLayout(self.admin_tab)
+        if hasattr(self, "asset_type_dropdown"):
+            if self.asset_type_dropdown.count() > 0:
+                self.load_validation_rule_ui(self.asset_type_dropdown.currentText())
 
-            self.new_username_input = QtWidgets.QLineEdit()
-            self.new_username_input.setPlaceholderText("Username")
+        header_layout = QtWidgets.QHBoxLayout()
+        header_layout.addWidget(self.user_label)
+        header_layout.addStretch()
 
-            self.new_password_input = QtWidgets.QLineEdit()
-            self.new_password_input.setPlaceholderText("Password")
-            self.new_password_input.setEchoMode(QtWidgets.QLineEdit.Password)
+        if current_role == "app_admin":
+            header_layout.addWidget(self.admin_settings_button)
 
-            self.role_dropdown = QtWidgets.QComboBox()
-            self.role_dropdown.addItems(["viewer", "artist", "app_admin"])
+        header_layout.addWidget(self.logout_button)
 
-            self.create_user_button = QtWidgets.QPushButton("Create User")
+        action_layout = QtWidgets.QHBoxLayout()
+        action_layout.addWidget(self.validate_button)
+        action_layout.addWidget(self.fix_button)
+        action_layout.addWidget(self.publish_button)
 
-            admin_layout.addWidget(QtWidgets.QLabel("Admin Tools"))
+        asset_action_layout = QtWidgets.QHBoxLayout()
+        asset_action_layout.addWidget(self.open_folder_button)
+        asset_action_layout.addWidget(self.import_asset_button)
 
-            admin_layout.addWidget(self.new_username_input)
-            admin_layout.addWidget(self.new_password_input)
-            admin_layout.addWidget(self.role_dropdown)
-            admin_layout.addWidget(self.create_user_button)
-
-            from asset_publish_tool.core.validator import (
-                AVAILABLE_VALIDATION_CHECKS,
-                load_validation_rules,
-            )
-
-            rules_label = QtWidgets.QLabel("Validation Rules")
-            admin_layout.addWidget(rules_label)
-
-            self.asset_type_dropdown = QtWidgets.QComboBox()
-            admin_layout.addWidget(self.asset_type_dropdown)
-
-            project_root = Path(__file__).resolve().parents[3]
-            config_path = project_root / "config" / "validation_rules.json"
-
-            self.validation_rules_path = config_path
-            self.validation_rules = load_validation_rules(config_path)
-
-            scene_rules = self.validation_rules["scene_object_rules"]
-
-            for asset_type in scene_rules.keys():
-                self.asset_type_dropdown.addItem(asset_type)
-
-            admin_layout.addWidget(QtWidgets.QLabel("Naming Rules"))
-
-            self.use_default_suffix_checkbox = QtWidgets.QCheckBox(
-                "Use default suffix based on Maya object type"
-            )
-            self.use_default_suffix_checkbox.setChecked(True)
-            admin_layout.addWidget(self.use_default_suffix_checkbox)
-
-            admin_layout.addWidget(QtWidgets.QLabel("Custom suffix"))
-
-            self.name_pattern_input = QtWidgets.QLineEdit()
-            self.name_pattern_input.setPlaceholderText("e.g. _model")
-            admin_layout.addWidget(self.name_pattern_input)
-
-            self.validation_checkboxes = {}
-
-            for check_name in AVAILABLE_VALIDATION_CHECKS:
-                checkbox = QtWidgets.QCheckBox(check_name)
-
-                self.validation_checkboxes[check_name] = checkbox
-
-                admin_layout.addWidget(checkbox)
-
-            self.save_validation_rules_button = QtWidgets.QPushButton(
-                "Save Validation Rules"
-            )
-
-            admin_layout.addWidget(self.save_validation_rules_button)
-
-            self.tabs.addTab(self.admin_tab, "Admin")
-
-        if self.asset_type_dropdown.count() > 0:
-            self.load_validation_rule_ui(self.asset_type_dropdown.currentText())
-
-        layout.addWidget(self.user_label)
-        layout.addWidget(self.logout_button)
-        layout.addWidget(self.validate_button)
-        layout.addWidget(self.fix_button)
-        layout.addWidget(self.publish_button)
+        layout.addLayout(header_layout)
+        layout.addLayout(action_layout)
         layout.addWidget(self.output)
         layout.addWidget(self.search_bar)
         layout.addWidget(self.tabs)
-        layout.addWidget(self.open_folder_button)
-        layout.addWidget(self.import_asset_button)
+        layout.addLayout(asset_action_layout)
 
         self.load_published_assets()
+
+    def build_admin_settings_ui(self):
+        self.admin_settings_widget = QtWidgets.QWidget()
+
+        admin_layout = QtWidgets.QVBoxLayout(self.admin_settings_widget)
+        admin_layout.setSpacing(8)
+        admin_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.admin_tabs = QtWidgets.QTabWidget()
+        admin_layout.addWidget(self.admin_tabs)
+
+        # -------------------------
+        # Users tab
+        # -------------------------
+        self.users_tab = QtWidgets.QWidget()
+
+        users_layout = QtWidgets.QVBoxLayout(self.users_tab)
+        users_layout.setSpacing(6)
+        users_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.admin_tabs.addTab(self.users_tab, "Users")
+
+        self.new_username_input = QtWidgets.QLineEdit()
+        self.new_username_input.setPlaceholderText("Username")
+
+        self.new_password_input = QtWidgets.QLineEdit()
+        self.new_password_input.setPlaceholderText("Password")
+        self.new_password_input.setEchoMode(QtWidgets.QLineEdit.Password)
+
+        role_layout = QtWidgets.QHBoxLayout()
+        role_layout.setSpacing(6)
+
+        role_layout.addWidget(QtWidgets.QLabel("Role"))
+
+        self.role_dropdown = QtWidgets.QComboBox()
+        self.role_dropdown.addItems(["viewer", "artist", "app_admin"])
+        self.role_dropdown.setFixedWidth(140)
+
+        role_layout.addWidget(self.role_dropdown)
+
+        role_layout.addStretch()
+
+        users_layout.addWidget(QtWidgets.QLabel("Existing Users"))
+
+        self.users_table = QtWidgets.QTableWidget()
+        self.users_table.setColumnCount(3)
+        self.users_table.setHorizontalHeaderLabels(["Username", "Role", "Actions"])
+
+        self.users_table.horizontalHeader().setStretchLastSection(True)
+
+        users_layout.addWidget(self.users_table)
+        self.load_users_table()
+
+        users_layout.addSpacing(20)
+
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.HLine)
+        separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+
+        users_layout.addSpacing(12)
+        users_layout.addWidget(separator)
+        users_layout.addSpacing(20)
+
+        users_layout.addWidget(QtWidgets.QLabel("Create User"))
+        self.create_user_button = QtWidgets.QPushButton("Create User")
+
+        users_layout.addWidget(self.new_username_input)
+        users_layout.addWidget(self.new_password_input)
+        users_layout.addLayout(role_layout)
+        users_layout.addWidget(self.create_user_button)
+
+        users_layout.addStretch()
+
+        # -------------------------
+        # Validation Rules tab
+        # -------------------------
+        self.validation_tab = QtWidgets.QWidget()
+
+        validation_layout = QtWidgets.QVBoxLayout(self.validation_tab)
+        validation_layout.setSpacing(6)
+        validation_layout.setContentsMargins(10, 10, 10, 10)
+
+        self.admin_tabs.addTab(self.validation_tab, "Validation Rules")
+
+        from asset_publish_tool.core.validator import (
+            AVAILABLE_VALIDATION_CHECKS,
+            load_validation_rules,
+        )
+
+        validation_layout.addWidget(QtWidgets.QLabel("Asset Type"))
+
+        self.asset_type_dropdown = QtWidgets.QComboBox()
+        validation_layout.addWidget(self.asset_type_dropdown)
+
+        project_root = Path(__file__).resolve().parents[3]
+        config_path = project_root / "config" / "validation_rules.json"
+
+        self.validation_rules_path = config_path
+        self.validation_rules = load_validation_rules(config_path)
+
+        scene_rules = self.validation_rules["scene_object_rules"]
+
+        for asset_type in scene_rules.keys():
+            self.asset_type_dropdown.addItem(asset_type)
+
+        validation_layout.addSpacing(20)
+
+        validation_layout.addWidget(QtWidgets.QLabel("Naming Rules"))
+
+        suffix_layout = QtWidgets.QHBoxLayout()
+        suffix_layout.setSpacing(6)
+
+        self.use_default_suffix_checkbox = QtWidgets.QCheckBox(
+            "Use default suffix based on Maya object type"
+        )
+        self.use_default_suffix_checkbox.setChecked(True)
+
+        validation_layout.addWidget(self.use_default_suffix_checkbox)
+
+        custom_suffix_layout = QtWidgets.QHBoxLayout()
+
+        custom_suffix_layout.addWidget(QtWidgets.QLabel("Custom suffix"))
+
+        self.name_pattern_input = QtWidgets.QLineEdit()
+        self.name_pattern_input.setPlaceholderText("e.g. _model")
+
+        custom_suffix_layout.addWidget(self.name_pattern_input)
+
+        validation_layout.addLayout(custom_suffix_layout)
+
+        self.validation_checkboxes = {}
+
+        for check_name in AVAILABLE_VALIDATION_CHECKS:
+            checkbox = QtWidgets.QCheckBox(check_name)
+
+            self.validation_checkboxes[check_name] = checkbox
+
+            validation_layout.addWidget(checkbox)
+
+        self.save_validation_rules_button = QtWidgets.QPushButton(
+            "Save Validation Rules"
+        )
+
+        validation_layout.addWidget(self.save_validation_rules_button)
+
+        validation_layout.addStretch()
+
+    def show_admin_settings(self):
+        dialog = AdminSettingsDialog(
+            self.admin_settings_widget,
+            parent=self,
+        )
+
+        dialog.exec()
 
     def _create_asset_table(self, show_preview=True):
         table = QtWidgets.QTableWidget()
 
         if show_preview:
-            table.setColumnCount(4)
+            table.setColumnCount(5)
             table.setHorizontalHeaderLabels(
-                ["Preview", "Asset Name", "Version", "Publish Path"]
+                ["Preview", "Asset Name", "Version", "Publisher", "Published At"]
             )
             table.setIconSize(QtCore.QSize(80, 80))
             table.verticalHeader().setDefaultSectionSize(90)
         else:
-            table.setColumnCount(3)
-            table.setHorizontalHeaderLabels(["Asset Name", "Version", "Publish Path"])
+            table.setColumnCount(4)
+            table.setHorizontalHeaderLabels(
+                ["Asset Name", "Version", "Publisher", "Published At"]
+            )
             table.verticalHeader().setDefaultSectionSize(35)
 
         table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        table.setSortingEnabled(True)
 
         header = table.horizontalHeader()
 
@@ -378,6 +489,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
                 self.update_suffix_input_state
             )
 
+        if hasattr(self, "admin_settings_button"):
+            self.admin_settings_button.clicked.connect(self.show_admin_settings)
+
     def create_new_user(self):
         from asset_publish_tool.auth.user_manager import create_user
         from asset_publish_tool.database.connection import get_database
@@ -407,6 +521,42 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.new_username_input.clear()
         self.new_password_input.clear()
+        self.load_users_table()
+
+    def delete_user(self, username):
+        from asset_publish_tool.auth.session import (
+            get_current_user,
+        )
+        from asset_publish_tool.auth.user_manager import (
+            delete_user_by_username,
+        )
+        from asset_publish_tool.database.connection import (
+            get_database,
+        )
+
+        current_user = get_current_user()
+
+        if current_user:
+            current_username = current_user.get("username")
+
+            if username == current_username:
+                self.output.setText("You cannot delete your own account.")
+                return
+
+        db = get_database()
+
+        deleted = delete_user_by_username(
+            username,
+            db,
+        )
+
+        if not deleted:
+            self.output.setText(f"Failed to delete user '{username}'.")
+            return
+
+        self.output.setText(f"Deleted user '{username}'.")
+
+        self.load_users_table()
 
     def apply_role_permissions(self):
         current_user = get_current_user()
@@ -555,7 +705,10 @@ class PipelineToolWindow(QtWidgets.QDialog):
     ):
         asset_name = metadata.get("name", metadata.get("asset_name", ""))
         version = metadata.get("version", "")
-        publish_path = metadata.get("publish_path", "")
+        author = metadata.get("author", "")
+        created_at = self.format_timestamp(metadata.get("created_at", ""))
+
+        table.setSortingEnabled(False)
 
         if show_preview:
             preview_image = metadata.get("preview_image")
@@ -580,26 +733,23 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
             table.setItem(row, 0, preview_item)
 
-            name_item = QtWidgets.QTableWidgetItem(asset_name)
-            name_item.setData(
-                QtCore.Qt.UserRole,
-                metadata.get("package_file_id"),
-            )
-            table.setItem(row, 1, name_item)
-
+            name_column = 1
             version_column = 2
-            path_column = 3
+            author_column = 3
+            created_at_column = 4
 
         else:
-            name_item = QtWidgets.QTableWidgetItem(asset_name)
-            name_item.setData(
-                QtCore.Qt.UserRole,
-                metadata.get("package_file_id"),
-            )
-            table.setItem(row, 0, name_item)
-
+            name_column = 0
             version_column = 1
-            path_column = 2
+            author_column = 2
+            created_at_column = 3
+
+        name_item = QtWidgets.QTableWidgetItem(asset_name)
+        name_item.setData(
+            QtCore.Qt.UserRole,
+            metadata.get("package_file_id"),
+        )
+        table.setItem(row, name_column, name_item)
 
         version_dropdown = QtWidgets.QComboBox()
 
@@ -623,7 +773,53 @@ class PipelineToolWindow(QtWidgets.QDialog):
         )
 
         table.setCellWidget(row, version_column, version_dropdown)
-        table.setItem(row, path_column, QtWidgets.QTableWidgetItem(publish_path))
+        table.setItem(row, author_column, QtWidgets.QTableWidgetItem(author))
+        table.setItem(row, created_at_column, QtWidgets.QTableWidgetItem(created_at))
+
+        table.setSortingEnabled(True)
+
+    def load_users_table(self):
+        from asset_publish_tool.auth.user_manager import get_all_users
+        from asset_publish_tool.database.connection import get_database
+
+        if not hasattr(self, "users_table"):
+            return
+
+        db = get_database()
+        users = get_all_users(db)
+
+        self.users_table.setRowCount(0)
+
+        for user in users:
+            row = self.users_table.rowCount()
+            self.users_table.insertRow(row)
+
+            username = user.get("username", "")
+            role = user.get("role", "")
+
+            self.users_table.setItem(
+                row,
+                0,
+                QtWidgets.QTableWidgetItem(username),
+            )
+
+            self.users_table.setItem(
+                row,
+                1,
+                QtWidgets.QTableWidgetItem(role),
+            )
+
+            delete_button = QtWidgets.QPushButton("Delete")
+
+            delete_button.clicked.connect(
+                lambda checked=False, username=username: self.delete_user(username)
+            )
+
+            self.users_table.setCellWidget(
+                row,
+                2,
+                delete_button,
+            )
 
     def _on_version_changed(self, table, row, dropdown, show_preview=True):
         metadata = dropdown.currentData()
@@ -631,7 +827,10 @@ class PipelineToolWindow(QtWidgets.QDialog):
         if not metadata:
             return
 
-        publish_path = metadata.get("publish_path", "")
+        author = metadata.get("author", "")
+        created_at = self.format_timestamp(metadata.get("created_at", ""))
+
+        table.setSortingEnabled(False)
 
         if show_preview:
             preview_image = metadata.get("preview_image")
@@ -657,23 +856,24 @@ class PipelineToolWindow(QtWidgets.QDialog):
             table.setItem(row, 0, preview_item)
 
             name_item = table.item(row, 1)
-            if name_item:
-                name_item.setData(
-                    QtCore.Qt.UserRole,
-                    metadata.get("package_file_id"),
-                )
-
-            table.setItem(row, 3, QtWidgets.QTableWidgetItem(publish_path))
+            author_column = 3
+            created_at_column = 4
 
         else:
             name_item = table.item(row, 0)
-            if name_item:
-                name_item.setData(
-                    QtCore.Qt.UserRole,
-                    metadata.get("package_file_id"),
-                )
+            author_column = 2
+            created_at_column = 3
 
-            table.setItem(row, 2, QtWidgets.QTableWidgetItem(publish_path))
+        if name_item:
+            name_item.setData(
+                QtCore.Qt.UserRole,
+                metadata.get("package_file_id"),
+            )
+
+        table.setItem(row, author_column, QtWidgets.QTableWidgetItem(author))
+        table.setItem(row, created_at_column, QtWidgets.QTableWidgetItem(created_at))
+
+        table.setSortingEnabled(True)
 
     def find_scene_object_by_asset_name(self, asset_name):
         transforms = cmds.ls(type="transform", long=True) or []
@@ -881,6 +1081,20 @@ class PipelineToolWindow(QtWidgets.QDialog):
             return
 
         self.output.setText(f"Imported asset from:\n{imported_file}")
+
+    def format_timestamp(self, timestamp):
+        from datetime import datetime
+
+        if not timestamp:
+            return ""
+
+        try:
+            dt = datetime.fromisoformat(timestamp)
+
+            return dt.strftime("%d %b %Y %H:%M")
+
+        except Exception:
+            return timestamp
 
     def logout(self):
         clear_current_user()

@@ -176,7 +176,12 @@ def publish_selected_objects():
             )
 
         source_scene = cmds.file(query=True, sceneName=True) or "unsaved_scene"
-        author = "osher"
+
+        from asset_publish_tool.auth.session import get_current_user
+
+        current_user = get_current_user()
+
+        author = current_user.get("username", "Unknown")
 
         version = get_next_version(publish_root, asset_type, asset_name)
 

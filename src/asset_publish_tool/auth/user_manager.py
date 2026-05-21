@@ -74,3 +74,25 @@ def get_user_role(username: str, db: Database):
         return None
 
     return user.get("role")
+
+
+def get_all_users(db):
+    collection = get_users_collection(db)
+
+    return list(
+        collection.find(
+            {},
+            {
+                "username": 1,
+                "role": 1,
+            },
+        ).sort("username", 1)
+    )
+
+
+def delete_user_by_username(username, db):
+    collection = get_users_collection(db)
+
+    result = collection.delete_one({"username": username})
+
+    return result.deleted_count > 0
