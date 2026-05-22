@@ -104,3 +104,19 @@ def get_latest_asset_version(asset_name, asset_type):
     next_version_number = version_number + 1
 
     return f"v{next_version_number:03d}"
+
+
+def delete_asset(asset_id, package_file_id=None):
+    db = get_database()
+    fs = gridfs.GridFS(db)
+    collection = db["assets"]
+
+    if package_file_id:
+        try:
+            fs.delete(ObjectId(package_file_id))
+        except Exception as e:
+            print(f"Failed to delete GridFS package: {e}")
+
+    result = collection.delete_one({"_id": ObjectId(asset_id)})
+
+    return result.deleted_count > 0

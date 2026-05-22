@@ -6,23 +6,25 @@ import maya.cmds as cmds
 from asset_publish_tool.core.validator import load_validation_rules
 
 
-def clean_name(name):
-    # Remove Maya path if object is part of a hierarchy
-    short_name = name.split("|")[-1]
+def clean_name(name, required_checks=None):
+    required_checks = required_checks or []
 
-    # Remove namespace if the object has one
+    short_name = name.split("|")[-1]
     short_name = short_name.split(":")[-1]
 
-    # Convert to lowercase
-    clean = short_name.lower()
+    clean = short_name
 
-    # Replace spaces and invalid characters with underscores
-    clean = re.sub(r"[^a-z0-9_]+", "_", clean)
+    if "lowercase_name" in required_checks:
+        clean = re.sub(r"(?<!^)(?=[A-Z])", "_", clean)
+        clean = clean.lower()
 
-    # Remove repeated underscores
+    if "no_spaces" in required_checks:
+        clean = clean.replace(" ", "_")
+
+    if "valid_characters" in required_checks:
+        clean = re.sub(r"[^A-Za-z0-9_]+", "_", clean)
+
     clean = re.sub(r"_+", "_", clean)
-
-    # Remove underscores from start/end
     clean = clean.strip("_")
 
     return clean
@@ -85,19 +87,22 @@ def get_all_configured_suffixes():
 
 
 def build_suggested_name(obj):
-    clean = clean_name(obj)
     detected_type = detect_maya_object_type(obj)
 
     if detected_type == "unknown":
-        return clean
+        return clean_name(obj)
+
+    rules = get_validation_rules()
+    object_rule = rules["scene_object_rules"].get(detected_type, {})
+    required_checks = object_rule.get("required_checks", [])
+
+    clean = clean_name(obj, required_checks)
 
     suffix = get_suffix_for_type(detected_type)
 
-    # If it already has the correct suffix, keep it
     if clean.endswith(suffix):
         return clean
 
-    # Handle names like main_camera1 -> main_1_camera
     for known_type in ["model", "light", "camera"]:
         match = re.match(rf"^(.*)_{known_type}(\d+)$", clean)
 
@@ -107,7 +112,6 @@ def build_suggested_name(obj):
             clean = f"{base_name}_{number}"
             break
 
-    # Remove known wrong suffixes, e.g. chair_light -> chair
     for existing_suffix in get_all_configured_suffixes():
         if clean.endswith(existing_suffix):
             clean = clean[: -len(existing_suffix)]
@@ -185,38 +189,56 @@ def fix_object_name(obj):
 def fix_selected_object_names():
     selection = get_expanded_scene_selection()
 
+    results = {
+        "renamed": [],
+        "already_valid": [],
+        "skipped": [],
+    }
+
     if not selection:
         print("No objects selected.")
-        return []
-
-    renamed = []
+        return results
 
     for obj in selection:
         detected_type = detect_maya_object_type(obj)
 
         if detected_type == "unknown":
+            results["skipped"].append(
+                {
+                    "name": obj,
+                    "reason": "Unsupported object type.",
+                }
+            )
             continue
 
-        old_name = obj
-        new_name, reason = fix_object_name(obj)
+        original_short_name = obj.split("|")[-1].split(":")[-1]
+        suggested_name = build_suggested_name(obj)
 
-        if not new_name:
+        if original_short_name == suggested_name:
+            results["already_valid"].append(
+                {
+                    "name": original_short_name,
+                }
+            )
             continue
 
-        renamed.append(
+        unique_name, reason = make_unique_name(suggested_name, current_obj=obj)
+        new_name = cmds.rename(obj, unique_name)
+
+        results["renamed"].append(
             {
-                "old_name": old_name,
+                "old_name": original_short_name,
                 "new_name": new_name,
                 "reason": reason,
             }
         )
 
-        print(f"Renamed: {old_name} -> {new_name}")
+        print(f"Renamed: {original_short_name} -> {new_name}")
 
         if reason:
             print(f"Reason: {reason}")
 
-    return renamed
+    return results
 
 
 def get_mesh_transforms_from_selection():

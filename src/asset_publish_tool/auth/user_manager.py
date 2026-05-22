@@ -90,6 +90,17 @@ def get_all_users(db):
     )
 
 
+def update_user_role(username, new_role, db):
+    collection = get_users_collection(db)
+
+    result = collection.update_one(
+        {"username": username},
+        {"$set": {"role": new_role}},
+    )
+
+    return result.modified_count > 0
+
+
 def delete_user_by_username(username, db):
     collection = get_users_collection(db)
 

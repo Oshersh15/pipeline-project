@@ -204,10 +204,10 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.publish_button = QtWidgets.QPushButton("Publish Selected Objects")
         self.search_bar = QtWidgets.QLineEdit()
         self.search_bar.setPlaceholderText("Search published assets...")
-        self.open_folder_button = QtWidgets.QPushButton("Open Selected Publish Folder")
-        self.open_folder_button.setEnabled(False)
         self.import_asset_button = QtWidgets.QPushButton("Import Selected Asset")
         self.import_asset_button.setEnabled(False)
+        self.delete_asset_button = QtWidgets.QPushButton("Delete Selected Asset")
+        self.delete_asset_button.setEnabled(False)
         self.selected_publish_path = ""
         self.output = QtWidgets.QTextEdit()
         self.output.setReadOnly(True)
@@ -247,11 +247,14 @@ class PipelineToolWindow(QtWidgets.QDialog):
         action_layout.addWidget(self.publish_button)
 
         asset_action_layout = QtWidgets.QHBoxLayout()
-        asset_action_layout.addWidget(self.open_folder_button)
         asset_action_layout.addWidget(self.import_asset_button)
 
+        if current_role == "app_admin":
+            asset_action_layout.addWidget(self.delete_asset_button)
+
         layout.addLayout(header_layout)
-        layout.addLayout(action_layout)
+        if current_role in ["artist", "app_admin"]:
+            layout.addLayout(action_layout)
         layout.addWidget(self.output)
         layout.addWidget(self.search_bar)
         layout.addWidget(self.tabs)
@@ -450,8 +453,6 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.validate_button.clicked.connect(self.run_validation)
         self.fix_button.clicked.connect(self.run_fix_names)
         self.publish_button.clicked.connect(self.run_publish)
-
-        self.open_folder_button.clicked.connect(self.open_selected_publish_folder)
         self.search_bar.textChanged.connect(self.filter_asset_tables)
         self.import_asset_button.clicked.connect(self.import_selected_asset)
         self.logout_button.clicked.connect(self.logout)
@@ -492,6 +493,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         if hasattr(self, "admin_settings_button"):
             self.admin_settings_button.clicked.connect(self.show_admin_settings)
 
+        if hasattr(self, "delete_asset_button"):
+            self.delete_asset_button.clicked.connect(self.delete_selected_asset)
+
     def create_new_user(self):
         from asset_publish_tool.auth.user_manager import create_user
         from asset_publish_tool.database.connection import get_database
@@ -523,6 +527,39 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.new_password_input.clear()
         self.load_users_table()
 
+    def change_user_role(self, username):
+        from asset_publish_tool.auth.user_manager import update_user_role
+        from asset_publish_tool.database.connection import get_database
+
+        roles = ["viewer", "artist", "app_admin"]
+
+        new_role, ok = QtWidgets.QInputDialog.getItem(
+            self,
+            "Change User Role",
+            f"Select new role for '{username}':",
+            roles,
+            0,
+            False,
+        )
+
+        if not ok:
+            return
+
+        db = get_database()
+
+        updated = update_user_role(
+            username=username,
+            new_role=new_role,
+            db=db,
+        )
+
+        if not updated:
+            self.output.setText(f"Failed to update role for '{username}'.")
+            return
+
+        self.output.setText(f"Updated '{username}' to role '{new_role}'.")
+        self.load_users_table()
+
     def delete_user(self, username):
         from asset_publish_tool.auth.session import (
             get_current_user,
@@ -544,6 +581,16 @@ class PipelineToolWindow(QtWidgets.QDialog):
                 return
 
         db = get_database()
+
+        confirm = QtWidgets.QMessageBox.question(
+            self,
+            "Delete User",
+            f"Are you sure you want to delete user '{username}'?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        )
+
+        if confirm != QtWidgets.QMessageBox.Yes:
+            return
 
         deleted = delete_user_by_username(
             username,
@@ -745,10 +792,12 @@ class PipelineToolWindow(QtWidgets.QDialog):
             created_at_column = 3
 
         name_item = QtWidgets.QTableWidgetItem(asset_name)
+        name_item.setData(QtCore.Qt.UserRole, metadata.get("package_file_id"))
         name_item.setData(
-            QtCore.Qt.UserRole,
-            metadata.get("package_file_id"),
+            QtCore.Qt.UserRole + 1,
+            str(metadata.get("_id")),
         )
+        name_item.setData(QtCore.Qt.UserRole + 1, str(metadata.get("_id")))
         table.setItem(row, name_column, name_item)
 
         version_dropdown = QtWidgets.QComboBox()
@@ -779,6 +828,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         table.setSortingEnabled(True)
 
     def load_users_table(self):
+        from asset_publish_tool.auth.session import get_current_user
         from asset_publish_tool.auth.user_manager import get_all_users
         from asset_publish_tool.database.connection import get_database
 
@@ -787,6 +837,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         db = get_database()
         users = get_all_users(db)
+
+        current_user = get_current_user()
+        current_username = current_user.get("username") if current_user else None
 
         self.users_table.setRowCount(0)
 
@@ -809,17 +862,89 @@ class PipelineToolWindow(QtWidgets.QDialog):
                 QtWidgets.QTableWidgetItem(role),
             )
 
-            delete_button = QtWidgets.QPushButton("Delete")
+            actions_button = QtWidgets.QPushButton("⋮")
 
-            delete_button.clicked.connect(
+            if username == current_username:
+                actions_button.setEnabled(False)
+                actions_button.setToolTip(
+                    "You cannot modify your own account while logged in."
+                )
+
+            actions_menu = QtWidgets.QMenu(actions_button)
+
+            change_role_action = actions_menu.addAction("Change Role")
+            delete_action = actions_menu.addAction("Delete User")
+
+            change_role_action.triggered.connect(
+                lambda checked=False, username=username: self.change_user_role(username)
+            )
+
+            delete_action.triggered.connect(
                 lambda checked=False, username=username: self.delete_user(username)
             )
+
+            actions_button.setMenu(actions_menu)
 
             self.users_table.setCellWidget(
                 row,
                 2,
-                delete_button,
+                actions_button,
             )
+
+    def delete_selected_asset(self):
+        from asset_publish_tool.database.asset_repository import delete_asset
+
+        current_table = self.tabs.currentWidget()
+        selected_rows = current_table.selectionModel().selectedRows()
+
+        if not selected_rows:
+            self.output.setText("No published asset selected.")
+            return
+
+        row = selected_rows[0].row()
+
+        if current_table == self.model_table:
+            name_column = 1
+        else:
+            name_column = 0
+
+        name_item = current_table.item(row, name_column)
+
+        if not name_item:
+            self.output.setText("Could not read selected asset.")
+            return
+
+        asset_name = name_item.text()
+        package_file_id = name_item.data(QtCore.Qt.UserRole)
+        asset_id = name_item.data(QtCore.Qt.UserRole + 1)
+
+        if not asset_id:
+            self.output.setText("Selected asset has no MongoDB asset ID.")
+            return
+
+        confirm = QtWidgets.QMessageBox.question(
+            self,
+            "Delete Asset",
+            f"Delete asset '{asset_name}' from MongoDB and GridFS?",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        )
+
+        if confirm != QtWidgets.QMessageBox.Yes:
+            return
+
+        deleted = delete_asset(
+            asset_id=asset_id,
+            package_file_id=package_file_id,
+        )
+
+        if not deleted:
+            self.output.setText(f"Failed to delete asset '{asset_name}'.")
+            return
+
+        self.output.setText(f"Deleted asset '{asset_name}' from MongoDB/GridFS.")
+
+        self.load_published_assets()
+        self.filter_asset_tables()
 
     def _on_version_changed(self, table, row, dropdown, show_preview=True):
         metadata = dropdown.currentData()
@@ -865,10 +990,12 @@ class PipelineToolWindow(QtWidgets.QDialog):
             created_at_column = 3
 
         if name_item:
+            name_item.setData(QtCore.Qt.UserRole, metadata.get("package_file_id"))
             name_item.setData(
-                QtCore.Qt.UserRole,
-                metadata.get("package_file_id"),
+                QtCore.Qt.UserRole + 1,
+                str(metadata.get("_id")),
             )
+            name_item.setData(QtCore.Qt.UserRole + 1, str(metadata.get("_id")))
 
         table.setItem(row, author_column, QtWidgets.QTableWidgetItem(author))
         table.setItem(row, created_at_column, QtWidgets.QTableWidgetItem(created_at))
@@ -892,31 +1019,39 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         if not selected_rows:
             self.selected_publish_path = ""
-            self.open_folder_button.setEnabled(False)
             self.import_asset_button.setEnabled(False)
+
+            if hasattr(self, "delete_asset_button"):
+                self.delete_asset_button.setEnabled(False)
+
             return
 
         row = selected_rows[0].row()
 
         if show_preview:
             name_column = 1
-            path_column = 3
         else:
             name_column = 0
-            path_column = 2
 
         name_item = table.item(row, name_column)
-        path_item = table.item(row, path_column)
 
-        if not name_item or not path_item:
+        if not name_item:
+            self.import_asset_button.setEnabled(False)
+
+            if hasattr(self, "delete_asset_button"):
+                self.delete_asset_button.setEnabled(False)
+
             return
 
         asset_name = name_item.text()
-        publish_path = path_item.text()
 
-        self.selected_publish_path = publish_path
-        self.open_folder_button.setEnabled(bool(publish_path))
-        self.import_asset_button.setEnabled(bool(name_item.data(QtCore.Qt.UserRole)))
+        package_file_id = name_item.data(QtCore.Qt.UserRole)
+        asset_id = name_item.data(QtCore.Qt.UserRole + 1)
+
+        self.import_asset_button.setEnabled(bool(package_file_id))
+
+        if hasattr(self, "delete_asset_button"):
+            self.delete_asset_button.setEnabled(bool(asset_id))
 
         matching_object = self.find_scene_object_by_asset_name(asset_name)
 
@@ -929,26 +1064,26 @@ class PipelineToolWindow(QtWidgets.QDialog):
                 f"No matching object with this name was found in the current Maya scene."
             )
 
-    def open_selected_publish_folder(self):
-        if not self.selected_publish_path:
-            return
+    # def open_selected_publish_folder(self):
+    #     if not self.selected_publish_path:
+    #         return
 
-        publish_path = Path(self.selected_publish_path)
+    #     publish_path = Path(self.selected_publish_path)
 
-        if not publish_path.exists():
-            self.output.setText(f"Publish folder does not exist:\n{publish_path}")
-            return
+    #     if not publish_path.exists():
+    #         self.output.setText(f"Publish folder does not exist:\n{publish_path}")
+    #         return
 
-        system = platform.system()
+    #     system = platform.system()
 
-        if system == "Darwin":  # macOS
-            subprocess.Popen(["open", str(publish_path)])
-        elif system == "Windows":
-            os.startfile(str(publish_path))
-        else:  # Linux
-            subprocess.Popen(["xdg-open", str(publish_path)])
+    #     if system == "Darwin":  # macOS
+    #         subprocess.Popen(["open", str(publish_path)])
+    #     elif system == "Windows":
+    #         os.startfile(str(publish_path))
+    #     else:  # Linux
+    #         subprocess.Popen(["xdg-open", str(publish_path)])
 
-        self.output.setText(f"Opened publish folder:\n{publish_path}")
+    #     self.output.setText(f"Opened publish folder:\n{publish_path}")
 
     def filter_asset_tables(self):
         search_text = self.search_bar.text().lower().strip()
@@ -975,14 +1110,45 @@ class PipelineToolWindow(QtWidgets.QDialog):
     def run_fix_names(self):
         results = fix_selected_object_names()
 
-        output = "Fix Names Result\n"
+        renamed = results.get("renamed", [])
+        already_valid = results.get("already_valid", [])
+        skipped = results.get("skipped", [])
+
+        output = "Fix Names Summary\n"
         output += "=" * 30 + "\n\n"
 
-        for result in results:
-            output += f"{result['old_name']} -> {result['new_name']}\n"
+        output += f"Renamed: {len(renamed)}\n"
+        output += f"Already Valid: {len(already_valid)}\n"
+        output += f"Skipped: {len(skipped)}\n\n"
 
-            if result.get("reason"):
-                output += f"   Note: {result['reason']}\n"
+        if renamed:
+            output += "Renamed\n"
+            output += "-" * 30 + "\n"
+
+            for item in renamed:
+                output += f"{item['old_name']} → {item['new_name']}\n"
+
+                if item.get("reason"):
+                    output += f"   - {item['reason']}\n"
+
+            output += "\n"
+
+        if skipped:
+            output += "Skipped\n"
+            output += "-" * 30 + "\n"
+
+            for item in skipped:
+                output += f"{item['name']}\n"
+                output += f"   - {item['reason']}\n"
+
+            output += "\n"
+
+        if already_valid:
+            output += "Already Valid\n"
+            output += "-" * 30 + "\n"
+
+            for item in already_valid:
+                output += f" - {item['name']}\n"
 
         self.output.setText(output)
 
@@ -993,25 +1159,38 @@ class PipelineToolWindow(QtWidgets.QDialog):
             self.output.setText(f"Permission denied:\n{e}")
             return
 
-        valid_count = sum(1 for r in results if r["valid"])
-        invalid_count = len(results) - valid_count
+        if not results:
+            self.output.setText("No valid scene objects were selected for validation.")
+            return
 
-        output = "Validation Result\n"
+        valid_results = [result for result in results if result["valid"]]
+        invalid_results = [result for result in results if not result["valid"]]
+
+        output = "Validation Summary\n"
         output += "=" * 30 + "\n\n"
 
-        output += f"Valid: {valid_count}\n"
-        output += f"Invalid: {invalid_count}\n\n"
+        output += f"Checked: {len(results)}\n"
+        output += f"Valid: {len(valid_results)}\n"
+        output += f"Invalid: {len(invalid_results)}\n\n"
 
-        for result in results:
-            output += (
-                f"{result['name']} → {result['type']} → Valid: {result['valid']}\n"
-            )
+        if invalid_results:
+            output += "Needs Fix\n"
+            output += "-" * 30 + "\n"
 
-            if result["errors"]:
+            for result in invalid_results:
+                output += f"{result['name']} ({result['type']})\n"
+
                 for error in result["errors"]:
                     output += f"   - {error}\n"
 
-            output += "\n"
+                output += "\n"
+
+        if valid_results:
+            output += "Valid Objects\n"
+            output += "-" * 30 + "\n"
+
+            for result in valid_results:
+                output += f" - {result['name']} ({result['type']})\n"
 
         self.output.setText(output)
 
