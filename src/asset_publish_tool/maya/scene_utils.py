@@ -3,31 +3,8 @@ from pathlib import Path
 
 import maya.cmds as cmds
 
+from asset_publish_tool.core.naming import clean_name
 from asset_publish_tool.core.validator import load_validation_rules
-
-
-def clean_name(name, required_checks=None):
-    required_checks = required_checks or []
-
-    short_name = name.split("|")[-1]
-    short_name = short_name.split(":")[-1]
-
-    clean = short_name
-
-    if "lowercase_name" in required_checks:
-        clean = re.sub(r"(?<!^)(?=[A-Z])", "_", clean)
-        clean = clean.lower()
-
-    if "no_spaces" in required_checks:
-        clean = clean.replace(" ", "_")
-
-    if "valid_characters" in required_checks:
-        clean = re.sub(r"[^A-Za-z0-9_]+", "_", clean)
-
-    clean = re.sub(r"_+", "_", clean)
-    clean = clean.strip("_")
-
-    return clean
 
 
 def detect_maya_object_type(obj):
@@ -167,7 +144,6 @@ def make_unique_name(suggested_name, current_obj=None):
 
 def fix_object_name(obj):
     original_short_name = obj.split("|")[-1].split(":")[-1]
-    current_clean_name = clean_name(obj)
 
     detected_type = detect_maya_object_type(obj)
 

@@ -104,6 +104,11 @@ def update_user_role(username, new_role, db):
 def delete_user_by_username(username, db):
     collection = get_users_collection(db)
 
+    try:
+        db.command("dropUser", username)
+    except Exception:
+        pass
+
     result = collection.delete_one({"username": username})
 
     return result.deleted_count > 0
