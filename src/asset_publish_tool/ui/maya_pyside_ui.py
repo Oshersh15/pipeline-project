@@ -20,7 +20,10 @@ from asset_publish_tool.auth.session import (
     clear_current_user,
     get_current_user,
 )
-from asset_publish_tool.database.asset_repository import get_all_assets
+from asset_publish_tool.database.asset_repository import (
+    get_all_assets,
+    retrieve_asset_to_cache,
+)
 from asset_publish_tool.maya.importer import import_asset_package
 from asset_publish_tool.maya.publisher import (
     publish_selected_objects,
@@ -206,6 +209,8 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.search_bar.setPlaceholderText("Search published assets...")
         self.import_asset_button = QtWidgets.QPushButton("Import Selected Asset")
         self.import_asset_button.setEnabled(False)
+        self.retrieve_asset_button = QtWidgets.QPushButton("Retrieve to Cache")
+        self.retrieve_asset_button.setEnabled(False)
         self.delete_asset_button = QtWidgets.QPushButton("Delete Selected Asset")
         self.delete_asset_button.setEnabled(False)
         self.selected_publish_path = ""
@@ -248,6 +253,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         asset_action_layout = QtWidgets.QHBoxLayout()
         asset_action_layout.addWidget(self.import_asset_button)
+        asset_action_layout.addWidget(self.retrieve_asset_button)
 
         if current_role == "app_admin":
             asset_action_layout.addWidget(self.delete_asset_button)
@@ -477,6 +483,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.publish_button.clicked.connect(self.run_publish)
         self.search_bar.textChanged.connect(self.filter_asset_tables)
         self.import_asset_button.clicked.connect(self.import_selected_asset)
+        self.retrieve_asset_button.clicked.connect(self.retrieve_selected_asset)
         self.logout_button.clicked.connect(self.logout)
 
         self.model_table.itemSelectionChanged.connect(
@@ -1071,6 +1078,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         asset_id = name_item.data(QtCore.Qt.UserRole + 1)
 
         self.import_asset_button.setEnabled(bool(package_file_id))
+        self.retrieve_asset_button.setEnabled(bool(package_file_id))
 
         if hasattr(self, "delete_asset_button"):
             self.delete_asset_button.setEnabled(bool(asset_id))
@@ -1079,33 +1087,13 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         if matching_object:
             cmds.select(matching_object, replace=True)
-            self.output.setText(f"Selected scene object: {matching_object}")
+            short_name = matching_object.split("|")[-1]
+            self.output.setText(f"Selected scene object: {short_name}")
         else:
             self.output.setText(
                 f"Published asset selected: {asset_name}\n"
                 f"No matching object with this name was found in the current Maya scene."
             )
-
-    # def open_selected_publish_folder(self):
-    #     if not self.selected_publish_path:
-    #         return
-
-    #     publish_path = Path(self.selected_publish_path)
-
-    #     if not publish_path.exists():
-    #         self.output.setText(f"Publish folder does not exist:\n{publish_path}")
-    #         return
-
-    #     system = platform.system()
-
-    #     if system == "Darwin":  # macOS
-    #         subprocess.Popen(["open", str(publish_path)])
-    #     elif system == "Windows":
-    #         os.startfile(str(publish_path))
-    #     else:  # Linux
-    #         subprocess.Popen(["xdg-open", str(publish_path)])
-
-    #     self.output.setText(f"Opened publish folder:\n{publish_path}")
 
     def filter_asset_tables(self):
         search_text = self.search_bar.text().lower().strip()
@@ -1227,9 +1215,12 @@ class PipelineToolWindow(QtWidgets.QDialog):
         output += "=" * 30 + "\n\n"
 
         output += f"Published: {len(summary['published'])}\n"
+
         for item in summary["published"]:
             output += f" - {item['name']} ({item['type']}, {item['version']})\n"
-            output += "   Stored in MongoDB/GridFS\n"
+
+        if summary["published"]:
+            output += "\nPublished assets were saved successfully.\n"
 
         output += "\n"
         output += f"Warnings: {len(summary.get('warnings', []))}\n"
@@ -1247,6 +1238,27 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.load_published_assets()
         self.filter_asset_tables()
         self.output.setText(output)
+
+    def get_selected_asset_metadata(self):
+        current_table = self.tabs.currentWidget()
+        selected_rows = current_table.selectionModel().selectedRows()
+
+        if not selected_rows:
+            return None
+
+        row = selected_rows[0].row()
+
+        if current_table == self.model_table:
+            version_column = 2
+        else:
+            version_column = 1
+
+        version_dropdown = current_table.cellWidget(row, version_column)
+
+        if not version_dropdown:
+            return None
+
+        return version_dropdown.currentData()
 
     def import_selected_asset(self):
         current_table = self.tabs.currentWidget()
@@ -1282,6 +1294,28 @@ class PipelineToolWindow(QtWidgets.QDialog):
             return
 
         self.output.setText(f"Imported asset from:\n{imported_file}")
+
+    def retrieve_selected_asset(self):
+        metadata = self.get_selected_asset_metadata()
+
+        if not metadata:
+            self.output.setText("No published asset selected.")
+            return
+
+        project_root = Path(__file__).resolve().parents[3]
+        cache_root = project_root / "asset_cache"
+
+        try:
+            cache_path = retrieve_asset_to_cache(
+                metadata,
+                cache_root,
+            )
+
+        except Exception as e:
+            self.output.setText(f"Asset retrieval failed:\n{e}")
+            return
+
+        self.output.setText(f"Asset retrieved to:\n{cache_path}")
 
     def format_timestamp(self, timestamp):
         from datetime import datetime

@@ -97,9 +97,7 @@ def get_material_assignment_warnings(obj):
         if len(unique_shading_groups) > 1:
             warnings.append(
                 (
-                    f"'{obj}' uses multiple material assignments. "
-                    "Current USD export may not preserve complex or face-assigned "
-                    "material networks correctly."
+                    "Multiple material assignments may not fully preserve face-assigned materials in USD."
                 )
             )
 
@@ -245,15 +243,23 @@ def publish_selected_objects():
             world_matrix=world_matrix,
         )
 
-        if not usd_processed:
+        if not usd_processed["success"]:
             summary["skipped"].append(
                 {
                     "name": obj,
                     "reason": "USD post-processing failed",
-                    "errors": [],
+                    "errors": usd_processed["errors"],
                 }
             )
             continue
+
+        for warning in usd_processed["warnings"]:
+            summary["warnings"].append(
+                {
+                    "name": asset_name,
+                    "warning": warning,
+                }
+            )
 
         preview_file = version_path / f"{asset_name}_preview.png"
 
@@ -299,6 +305,14 @@ def publish_selected_objects():
             print(f"Saved asset metadata to MongoDB: {mongo_id}")
 
             shutil.rmtree(version_path)
+            asset_folder = version_path.parent
+            type_folder = asset_folder.parent
+
+            if asset_folder.exists() and not any(asset_folder.iterdir()):
+                asset_folder.rmdir()
+
+            if type_folder.exists() and not any(type_folder.iterdir()):
+                type_folder.rmdir()
 
         except Exception as e:
             print(f"MongoDB save failed for {asset_name}: {e}")

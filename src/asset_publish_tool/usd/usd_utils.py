@@ -107,16 +107,24 @@ def process_exported_usd(
     author: str,
     source_scene: str,
     world_matrix: list[float],
-) -> bool:
+) -> dict:
     stage = open_usd_stage(usd_file)
 
     if not stage:
-        return False
+        return {
+            "success": False,
+            "warnings": [],
+            "errors": ["USD stage could not be opened."],
+        }
 
     default_prim = set_default_prim_if_missing(stage)
 
     if not default_prim:
-        return False
+        return {
+            "success": False,
+            "warnings": [],
+            "errors": ["USD file has no valid defaultPrim."],
+        }
 
     if APPLY_WORLD_TRANSFORM:
         apply_world_transform(stage, world_matrix)
@@ -133,9 +141,53 @@ def process_exported_usd(
         source_scene=source_scene,
     )
 
+    validation_results = validate_exported_usd(stage)
+
+    if validation_results["errors"]:
+        print("USD validation failed:")
+
+        for error in validation_results["errors"]:
+            print(f" - {error}")
+
+        return {
+            "success": False,
+            "warnings": validation_results["warnings"],
+            "errors": validation_results["errors"],
+        }
+
+    if validation_results["warnings"]:
+        print("USD validation warnings:")
+
+        for warning in validation_results["warnings"]:
+            print(f" - {warning}")
+
     stage.GetRootLayer().Save()
 
     print(f"Processed USD file: {usd_file}")
     print(f"Default prim: {default_prim.GetName()}")
 
-    return True
+    return {
+        "success": True,
+        "warnings": validation_results["warnings"],
+        "errors": [],
+    }
+
+
+def validate_exported_usd(stage: Usd.Stage) -> dict:
+
+    results = {
+        "warnings": [],
+        "errors": [],
+    }
+
+    default_prim = stage.GetDefaultPrim()
+
+    if not default_prim:
+        results["warnings"].append("USD file has no defaultPrim.")
+
+    root_prim = get_first_root_prim(stage)
+
+    if not root_prim:
+        results["errors"].append("USD file contains no root prims.")
+
+    return results

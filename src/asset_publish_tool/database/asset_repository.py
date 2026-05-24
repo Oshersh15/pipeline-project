@@ -81,6 +81,25 @@ def extract_publish_package(package_file_id, output_dir):
     return output_path
 
 
+def retrieve_asset_to_cache(metadata, cache_root):
+    asset_type = metadata.get("type", metadata.get("asset_type", "unknown"))
+    asset_name = metadata.get("name", metadata.get("asset_name", "unknown_asset"))
+    version = metadata.get("version", "unknown_version")
+    package_file_id = metadata.get("package_file_id")
+
+    if not package_file_id:
+        raise ValueError(f"Asset '{asset_name}' has no package_file_id.")
+
+    cache_path = Path(cache_root) / asset_type / asset_name / version
+
+    extract_publish_package(
+        package_file_id,
+        cache_path,
+    )
+
+    return cache_path
+
+
 def load_binary_file(file_path):
     with open(file_path, "rb") as file:
         return file.read()
