@@ -17,6 +17,7 @@ asset_cache/
 *.usdc
 *.obj
 *.png
+!icons/asset_publish_icon.png
 
 .cache/
 .coverage

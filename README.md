@@ -2,242 +2,234 @@
 
 # USD-Based Asset Publishing and Validation Tool for DCC Pipelines
 
-## Initial Design
+## Overview
 
-This project proposes the development of an automated asset publishing and validation tool for DCC workflows, with Autodesk Maya used as the initial test environment.
+This project implements a USD-based asset publishing and validation tool for Digital Content Creation (DCC) workflows, using Autodesk Maya as the primary integration environment.
 
-The overall aim is to build towards a USD-based publishing pipeline, while focusing on practical publish-stage workflows including validation, structured publishing, metadata tracking, and backend-driven asset management.
+The system focuses on production-oriented publish workflows including:
 
-The current implementation focuses on:
+- Automated validation
+- Version-controlled publishing
+- USD and OBJ export
+- MongoDB/GridFS asset storage
+- Asset retrieval and local cache workflows
+- Role-based permissions
+- Cross-DCC USD testing in Houdini Solaris
 
-- Storing validation rules in an external configuration file
-- Enforcing validation checks inside Maya
-- Creating structured versioned publish outputs
-- Recording publish metadata
-- Backend-driven metadata storage using MongoDB
-- Testing the workflow inside Maya
-
-The project currently demonstrates an early-stage pipeline architecture built around modular publishing systems, repository-based backend integration, and structured asset management workflows.
-
----
-
-# Definition of an Asset
-
-For the purposes of this project, an asset is defined as:
-
-- Geometry or rigged mesh data
-- Asset name and category
-- Version identifier
-- Source DCC application
-- Export format
-- Author and publish metadata
-- Generated preview imagery
-- Associated publish metadata and file locations
-
-Material reconstruction workflows are currently outside the primary project scope.
+The project demonstrates a modular pipeline-oriented architecture designed around structured asset publishing and backend-driven asset management.
 
 ---
 
-# Asset Management and Version-Controlled Publishing
+# Features
 
-The system introduces structured asset management principles by defining:
+The tool includes:
 
-- Where assets are stored
-- How assets are named
-- How versions are generated
-- How publish history is recorded
-
-The publishing process currently:
-
-- Enforces naming conventions
-- Generates standardised publish directory structures
-- Automatically increments versions
-- Prevents overwriting previous publishes
-- Records publish metadata
-- Stores publish metadata inside MongoDB
-
-This creates predictable asset organisation and reproducible publishing workflows similar to those used in production pipelines.
-
----
-
-# Current Development Focus
-
-The current implementation focuses primarily on the publish stage of the pipeline rather than a complete production asset management system.
-
-The prototype currently investigates:
-
-- Validation workflows inside Maya
-- Structured asset publishing
-- Automated version management
-- Backend-driven metadata tracking
-- Modular repository-based architecture
-- USD-based publishing workflows
-
-Validation rules are stored externally using JSON configuration files, allowing rules to be extended without modifying the core publishing logic.
-
-Published asset metadata is currently stored both locally and within MongoDB to support backend-driven asset querying and UI integration.
+- Automated asset validation
+- JSON-configurable validation rules
+- Automatic naming correction
+- Frozen transform validation
+- Structured version-controlled publishing
+- USD export and post-processing
+- OBJ export
+- Preview image generation
+- MongoDB metadata storage
+- GridFS asset package storage
+- Retrieval of published assets to local cache
+- Role-based authentication
+- Maya integration using PySide2 / PySide6
+- Published asset browsing UI
+- Cross-DCC USD testing in Houdini Solaris
+- Unit, integration, and Maya tests
 
 ---
 
-# Validation Framework
+# Validation
 
-Prior to publishing, the tool performs automated validation checks to ensure that assets meet defined production requirements.
+Before publishing, assets are validated against configurable production rules.
 
-Current validation includes:
+Validation checks include:
 
 - Naming convention validation
-- Detection of invalid or empty transforms
-- Basic object-type validation
+- Lowercase naming enforcement
+- Object-type validation
+- Frozen transform validation
+- Empty transform detection
 - Export eligibility checks
 
-Validation results are presented to the user before publishing proceeds.
+Validation rules are stored externally using JSON configuration files, allowing rule behaviour to be modified without changing the publishing logic.
 
-This validation stage functions as an initial review process to ensure assets are suitable for publishing.
-
----
-
-# USD Asset Packaging and Delivery
-
-Published assets are exported into a structured USD-based workflow using a standardised publish layout.
-
-The current implementation supports:
-
-- USD export
-- OBJ export for geometry assets
-- Structured versioned publish directories
-- Generated preview images
-- Metadata recording
-
-The project focuses on practical publishing workflows and pipeline structure rather than advanced custom USD schema development.
+Validation results are displayed directly inside the Maya interface before publishing proceeds.
 
 ---
 
-# Production Tracking
+# Publishing Workflow
 
-The current implementation integrates MongoDB for backend-driven metadata storage and publish tracking.
+The publishing workflow performs the following stages:
 
-Stored metadata currently includes:
+1. Asset validation
+2. Optional automatic name correction
+3. Version generation
+4. USD and OBJ export
+5. Preview image generation
+6. Metadata generation
+7. USD post-processing
+8. Asset package creation
+9. GridFS storage
+10. Temporary publish cleanup
+
+Published assets are packaged into versioned archives and stored within MongoDB GridFS.
+
+Temporary local publish folders are removed after packaging and storage.
+
+---
+
+# USD Workflow
+
+USD is used as the primary interchange format for asset publishing and cross-DCC testing.
+
+The USD workflow includes:
+
+- Maya USD export
+- USD post-processing using Pixar `pxr`
+- Automatic `defaultPrim` assignment
+- Root prim validation
+- Embedded metadata
+- World transform preservation
+- Validation in Houdini Solaris
+
+Embedded USD metadata includes:
+
+- Asset name
+- Asset type
+- Author
+- Version
+- Source scene path
+
+Cross-DCC testing was performed by retrieving published USD assets from GridFS and loading them into Houdini Solaris.
+
+---
+
+# Asset Storage and Retrieval
+
+MongoDB is used for metadata tracking and GridFS is used for asset package storage.
+
+Stored metadata includes:
 
 - Asset names
 - Asset types
-- Publish versions
-- Publish paths
-- Export file locations
-- Author information
+- Versions
 - Publish timestamps
+- Export paths
+- Package identifiers
+- Author information
 
-Published asset metadata is queried directly from MongoDB through a repository-based backend architecture.
+Published packages can be retrieved into a structured local cache:
 
-This allows the UI to load published assets from the backend rather than relying solely on local metadata file scanning.
+```text
+asset_cache/
+    model/
+        asset_name/
+            v001/
+```
 
----
-
-# Storage and History Design
-
-The project uses a staged approach to storage and asset history tracking.
-
-The current implementation stores:
-
-- Published asset exports locally
-- Publish metadata within MongoDB
-- Structured version folders for asset history
-
-The backend architecture currently focuses on metadata storage and querying workflows.
-
-Future development will investigate:
-
-- GridFS-based asset package storage
-- Remote backend deployment
-- Authentication systems
-- Extended production tracking workflows
+This allows published assets to be opened in external DCC applications such as Houdini.
 
 ---
 
-# DCC Integration
+# Roles and Permissions
 
-The tool is implemented as a Python-based Maya integration using a PySide6 graphical interface.
+The system includes role-based authentication with three user roles:
 
-The interface currently allows users to:
+# Roles and Permissions
 
-- Validate assets
-- Publish versioned assets
-- Review published assets
-- Access backend-driven asset metadata
-
-The architecture is designed modularly to support future extension into additional DCC environments.
-
----
-
-# Current Technologies
-
-The current prototype uses:
-
-- Autodesk Maya
-- Python
-- PySide6
-- USD
-- MongoDB
-- Podman
-- PyMongo
+| Permission | Admin | Artist | Viewer |
+|---|---|---|---|
+| Validate assets | ✓ | ✓ | ✗ |
+| Publish assets | ✓ | ✓ | ✗ |
+| Modify validation rules | ✓ | ✗ | ✗ |
+| Delete published assets | ✓ | ✗ | ✗ |
+| Browse published assets | ✓ | ✓ | ✓ |
+| Import assets into Maya | ✓ | ✓ | ✓ |
+| Retrieve assets to cache | ✓ | ✓ | ✓ |
 
 ---
 
-# Known Limitations
+# Maya Integration
 
-Current limitations include:
+The tool is implemented as a Python-based Maya integration using PySide.
 
-- Exported asset files are still stored locally
-- GridFS-based asset package storage is not yet implemented
-- No authentication or user permission system yet
-- No remote deployment yet
+The interface supports:
 
-These systems are planned as future extensions of the project.
+- Validation
+- Publishing
+- Asset browsing
+- Version viewing
+- Preview viewing
+- Import into Maya
+- Retrieval to cache
+- Backend-driven asset queries
 
----
-
-# Evaluation
-
-The system is evaluated using representative production assets inside Maya.
-
-Evaluation criteria include:
-
-- Reduction of manual publishing steps
-- Consistency of generated asset structures
-- Reliability of automated versioning
-- Successful metadata tracking
-- Backend-driven asset querying
-- Clarity of validation and publish reporting
+The UI supports both PySide2 and PySide6 depending on the available Maya environment.
 
 ---
 
-# Expected Outcome
-
-The final deliverable is a functioning prototype asset publishing system demonstrating:
-
-- Structured asset management
-- Automated publishing workflows
-- Backend-driven metadata storage
-- Version-controlled publishing
-- USD-based publishing workflows
-- Pipeline-oriented software architecture
-- Extension of Maya through Python API development
+# Testing
 
 The project includes:
 
-- Technical documentation
-- Installation documentation
-- Repository-based backend architecture
-- MongoDB integration
-- Working publishing and validation workflows
+- Unit tests
+- Integration tests
+- Maya integration tests using `mayapy`
+- Validation workflow tests
+- Asset retrieval tests
+- USD workflow verification
+
+Run unit and integration tests:
+
+```bash
+PYTHONPATH=src pytest
+```
+
+Run Maya integration tests using `mayapy`:
+
+```bash
+PYTHONPATH=src mayapy -m pytest tests/maya
+```
+
+Depending on the operating system and Maya installation, the full `mayapy` executable path may need to be specified manually.
+
 
 ---
 
-# Usage (Prototype)
+# Technologies Used
 
+- Autodesk Maya
+- Houdini Solaris
+- Python
+- PySide2 / PySide6
+- USD (`pxr`)
+- MongoDB
+- GridFS
+- PyMongo
+- Pytest
 
-The tool is currently executed inside Autodesk Maya through a drag-and-drop installer workflow.
+---
 
-To install the tool:
+# Project Scope
+
+# Project Scope
+
+The project focuses on asset-level publishing workflows, validation, backend-driven asset management, and USD interoperability between DCC applications.
+
+Full shot assembly workflows and remote production deployment are outside the scope of this implementation.
+
+---
+
+# Installation
+
+The tool is installed inside Autodesk Maya using a drag-and-drop installer workflow.
+
+## Installation Steps
 
 1. Open Autodesk Maya
 2. Drag `drag_to_maya.py` into the Maya viewport
@@ -246,18 +238,29 @@ The installer automatically:
 
 - Creates a Maya `.mod` file
 - Adds the project `src` directory to `PYTHONPATH`
-- Registers the project icon path through `XBMLANGPATH`
+- Registers the project icon path
 - Creates an `AssetPublish` shelf
-- Adds a launcher button for opening the tool UI
+- Adds a launcher button for opening the UI
 
 After installation, the tool can be launched directly from the Maya shelf.
 
----
-
-# Installation
-
-Detailed installation and setup instructions can be found in:
+Detailed setup instructions are available in:
 
 ```text
 INSTALL.md
 ```
+
+---
+
+# Resources and References
+
+The project was developed using a combination of original implementation work, lecturer guidance, technical documentation, and external development resources.
+
+Resources referenced during development include:
+
+- Autodesk Maya Python documentation
+- Pixar USD documentation
+- MongoDB and GridFS documentation
+- PySide documentation
+- Stack Overflow technical discussions
+- Lecturer-provided reference snippets and debugging guidance for Maya workflows and preview generation systems
