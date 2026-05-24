@@ -6,7 +6,8 @@ __pycache__/
 venv/
 .env
 
-published_assets/
+tmp_publish_cache/
+asset_cache/
 
 *.ma
 *.mb
@@ -18,3 +19,4 @@ published_assets/
 *.png
 
 .cache/
+.coverage
