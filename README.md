@@ -242,9 +242,7 @@ After installation, the tool can be launched directly from the Maya shelf.
 
 Detailed setup instructions are available in:
 
-```text
-INSTALL.md
-```
+[`INSTALL.md`](INSTALL.md)
 
 ---
 
