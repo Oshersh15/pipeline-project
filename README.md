@@ -140,8 +140,6 @@ This allows published assets to be opened in external DCC applications such as H
 
 The system includes role-based authentication with three user roles:
 
-# Roles and Permissions
-
 | Permission | Admin | Artist | Viewer |
 |---|---|---|---|
 | Validate assets | ✓ | ✓ | ✗ |
