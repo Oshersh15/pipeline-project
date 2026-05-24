@@ -217,8 +217,6 @@ Depending on the operating system and Maya installation, the full `mayapy` execu
 
 # Project Scope
 
-# Project Scope
-
 The project focuses on asset-level publishing workflows, validation, backend-driven asset management, and USD interoperability between DCC applications.
 
 Full shot assembly workflows and remote production deployment are outside the scope of this implementation.
