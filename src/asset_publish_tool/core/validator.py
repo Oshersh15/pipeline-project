@@ -6,6 +6,7 @@ AVAILABLE_VALIDATION_CHECKS = [
     "lowercase_name",
     "no_spaces",
     "valid_characters",
+    "frozen_transforms",
 ]
 
 

@@ -393,11 +393,33 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         self.validation_checkboxes = {}
 
-        for check_name in AVAILABLE_VALIDATION_CHECKS:
-            checkbox = QtWidgets.QCheckBox(check_name)
+        naming_checks = [
+            "lowercase_name",
+            "no_spaces",
+            "valid_characters",
+        ]
 
+        asset_checks = [
+            "frozen_transforms",
+        ]
+
+        for check_name in naming_checks:
+            if check_name not in AVAILABLE_VALIDATION_CHECKS:
+                continue
+
+            checkbox = QtWidgets.QCheckBox(check_name.replace("_", " ").title())
             self.validation_checkboxes[check_name] = checkbox
+            validation_layout.addWidget(checkbox)
 
+        validation_layout.addSpacing(14)
+        validation_layout.addWidget(QtWidgets.QLabel("Asset Rules"))
+
+        for check_name in asset_checks:
+            if check_name not in AVAILABLE_VALIDATION_CHECKS:
+                continue
+
+            checkbox = QtWidgets.QCheckBox(check_name.replace("_", " ").title())
+            self.validation_checkboxes[check_name] = checkbox
             validation_layout.addWidget(checkbox)
 
         self.save_validation_rules_button = QtWidgets.QPushButton(

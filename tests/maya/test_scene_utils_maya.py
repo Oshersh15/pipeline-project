@@ -74,3 +74,20 @@ def test_make_unique_name_prevents_collision(monkeypatch):
     new_name, reason = scene_utils.fix_object_name(cube_to_rename)
 
     assert new_name == "test_cube_2_model"
+
+
+def test_has_frozen_transforms_returns_true_for_clean_object():
+    cmds.file(new=True, force=True)
+
+    cube, _ = cmds.polyCube(name="test_cube_model")
+
+    assert scene_utils.has_frozen_transforms(cube) is True
+
+
+def test_has_frozen_transforms_returns_false_for_translated_object():
+    cmds.file(new=True, force=True)
+
+    cube, _ = cmds.polyCube(name="test_cube_model")
+    cmds.setAttr(f"{cube}.translateX", 5)
+
+    assert scene_utils.has_frozen_transforms(cube) is False

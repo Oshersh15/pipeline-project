@@ -19,6 +19,7 @@ from asset_publish_tool.maya.preview import capture_viewport_preview
 from asset_publish_tool.maya.scene_utils import (
     detect_maya_object_type,
     get_expanded_scene_selection,
+    has_frozen_transforms,
 )
 from asset_publish_tool.usd.usd_utils import process_exported_usd
 
@@ -58,6 +59,15 @@ def validate_selected_objects():
         clean_obj_name = obj.split("|")[-1]
         maya_object_type = detect_maya_object_type(obj)
         result = validate_scene_object(clean_obj_name, rules, maya_object_type)
+
+        object_rule = rules["scene_object_rules"].get(result["type"], {})
+        required_checks = object_rule.get("required_checks", [])
+
+        if "frozen_transforms" in required_checks:
+            if not has_frozen_transforms(obj):
+                result["errors"].append("Object transforms must be frozen.")
+                result["valid"] = False
+
         results.append(result)
 
         print(f"Object: {result['name']}")

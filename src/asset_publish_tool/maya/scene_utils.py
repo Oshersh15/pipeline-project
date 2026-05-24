@@ -291,3 +291,23 @@ def get_expanded_scene_selection():
                     expanded.append(parent[0])
 
     return list(dict.fromkeys(expanded))
+
+
+def has_frozen_transforms(obj):
+    translate_attrs = ["translateX", "translateY", "translateZ"]
+    rotate_attrs = ["rotateX", "rotateY", "rotateZ"]
+    scale_attrs = ["scaleX", "scaleY", "scaleZ"]
+
+    for attr in translate_attrs + rotate_attrs:
+        value = cmds.getAttr(f"{obj}.{attr}")
+
+        if value != 0:
+            return False
+
+    for attr in scale_attrs:
+        value = cmds.getAttr(f"{obj}.{attr}")
+
+        if value != 1:
+            return False
+
+    return True

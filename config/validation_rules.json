@@ -3,17 +3,29 @@
     "model": {
       "name_pattern": ".*_model$",
       "export_to_usd": true,
-      "required_checks": ["no_spaces", "valid_characters"]
+      "required_checks": [
+        "no_spaces",
+        "valid_characters",
+        "frozen_transforms"
+      ]
     },
     "light": {
       "name_pattern": ".*_light$",
       "export_to_usd": true,
-      "required_checks": ["lowercase_name", "no_spaces", "valid_characters"]
+      "required_checks": [
+        "lowercase_name",
+        "no_spaces",
+        "valid_characters"
+      ]
     },
     "camera": {
       "name_pattern": ".*_camera$",
       "export_to_usd": true,
-      "required_checks": ["lowercase_name", "no_spaces", "valid_characters"]
+      "required_checks": [
+        "lowercase_name",
+        "no_spaces",
+        "valid_characters"
+      ]
     }
   }
 }
