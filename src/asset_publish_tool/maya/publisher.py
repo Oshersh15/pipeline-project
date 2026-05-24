@@ -4,13 +4,19 @@ from pathlib import Path
 import maya.cmds as cmds
 
 from asset_publish_tool.auth.roles import has_permission
-from asset_publish_tool.auth.session import get_current_user_role
+from asset_publish_tool.auth.session import (
+    get_current_user,
+    get_current_user_role,
+)
+from asset_publish_tool.core.asset import Asset
+from asset_publish_tool.core.metadata import write_metadata
 from asset_publish_tool.core.validator import (
     load_validation_rules,
     validate_scene_object,
 )
 from asset_publish_tool.database.asset_repository import (
     create_publish_package,
+    get_next_asset_version,
     load_binary_file,
     save_asset,
     store_publish_package,
@@ -23,8 +29,27 @@ from asset_publish_tool.maya.scene_utils import (
 )
 from asset_publish_tool.usd.usd_utils import process_exported_usd
 
+# ----------------------------------------------------------------------
+# Validation
+# ----------------------------------------------------------------------
+
 
 def validate_selected_objects():
+    """
+    Validate the current Maya scene selection against configured publish rules.
+
+    Validation includes:
+    - naming convention checks
+    - object type validation
+    - frozen transform validation
+    - export eligibility checks
+
+    Returns:
+        list: Validation result dictionaries for each processed object.
+
+    Raises:
+        PermissionError: If the current user does not have validation permission.
+    """
     current_role = get_current_user_role()
 
     if current_role is None:
@@ -58,7 +83,12 @@ def validate_selected_objects():
 
         clean_obj_name = obj.split("|")[-1]
         maya_object_type = detect_maya_object_type(obj)
-        result = validate_scene_object(clean_obj_name, rules, maya_object_type)
+
+        result = validate_scene_object(
+            clean_obj_name,
+            rules,
+            maya_object_type,
+        )
 
         object_rule = rules["scene_object_rules"].get(result["type"], {})
         required_checks = object_rule.get("required_checks", [])
@@ -85,30 +115,76 @@ def validate_selected_objects():
     return results
 
 
+# ----------------------------------------------------------------------
+# Material warnings
+# ----------------------------------------------------------------------
+
+
 def get_material_assignment_warnings(obj):
+    """
+    Check whether a Maya object uses multiple material assignments.
+
+    This is primarily used to warn about potential issues when exporting
+    face-assigned materials to USD.
+
+    Args:
+        obj (str): Maya transform object name.
+
+    Returns:
+        list: Warning messages related to material assignments.
+    """
     warnings = []
 
-    shapes = cmds.listRelatives(obj, shapes=True, fullPath=True) or []
+    shapes = (
+        cmds.listRelatives(
+            obj,
+            shapes=True,
+            fullPath=True,
+        )
+        or []
+    )
 
     for shape in shapes:
-        shading_groups = cmds.listConnections(shape, type="shadingEngine") or []
+        shading_groups = (
+            cmds.listConnections(
+                shape,
+                type="shadingEngine",
+            )
+            or []
+        )
+
         unique_shading_groups = sorted(set(shading_groups))
 
         if len(unique_shading_groups) > 1:
             warnings.append(
                 (
-                    "Multiple material assignments may not fully preserve face-assigned materials in USD."
+                    "Multiple material assignments may not fully preserve "
+                    "face-assigned materials in USD."
                 )
             )
 
     return warnings
 
 
-def publish_selected_objects():
-    from asset_publish_tool.core.asset import Asset
-    from asset_publish_tool.core.metadata import write_metadata
-    from asset_publish_tool.core.versioning import get_next_version
+# ----------------------------------------------------------------------
+# Publishing
+# ----------------------------------------------------------------------
 
+
+def publish_selected_objects():
+    """
+    Publish selected Maya scene assets to the asset management system.
+
+    The publishing workflow performs validation, export, USD post-processing,
+    metadata generation, package creation, GridFS storage, and MongoDB
+    metadata registration.
+
+    Returns:
+        dict: Summary containing published assets, skipped assets, and warnings.
+
+    Raises:
+        PermissionError: If the current user does not have publish permission.
+    """
     current_role = get_current_user_role()
 
     if current_role is None:
@@ -146,7 +222,12 @@ def publish_selected_objects():
 
         clean_obj_name = obj.split("|")[-1]
         maya_object_type = detect_maya_object_type(obj)
-        result = validate_scene_object(clean_obj_name, rules, maya_object_type)
+
+        result = validate_scene_object(
+            clean_obj_name,
+            rules,
+            maya_object_type,
+        )
 
         if not result["valid"]:
             summary["skipped"].append(
@@ -183,15 +264,21 @@ def publish_selected_objects():
                 }
             )
 
-        source_scene = cmds.file(query=True, sceneName=True) or "unsaved_scene"
-
-        from asset_publish_tool.auth.session import get_current_user
+        source_scene = (
+            cmds.file(
+                query=True,
+                sceneName=True,
+            )
+            or "unsaved_scene"
+        )
 
         current_user = get_current_user()
-
         author = current_user.get("username", "Unknown")
 
-        version = get_next_version(publish_root, asset_type, asset_name)
+        version = get_next_asset_version(
+            asset_name,
+            asset_type,
+        )
 
         version_path = publish_root / asset_type / asset_name / version
         version_path.mkdir(parents=True, exist_ok=True)
@@ -211,7 +298,11 @@ def publish_selected_objects():
         if asset_type == "model":
             obj_export_file = version_path / f"{asset_name}.obj"
 
-            if not cmds.pluginInfo("objExport", query=True, loaded=True):
+            if not cmds.pluginInfo(
+                "objExport",
+                query=True,
+                loaded=True,
+            ):
                 cmds.loadPlugin("objExport")
 
             cmds.file(
@@ -267,9 +358,11 @@ def publish_selected_objects():
             capture_viewport_preview(obj, preview_file)
             preview_path = str(preview_file)
             preview_image = load_binary_file(preview_file)
+
         except Exception as e:
             preview_path = ""
             preview_image = None
+
             print(f"Preview capture failed for {asset_name}: {e}")
 
         package = create_publish_package(version_path)
@@ -298,13 +391,19 @@ def publish_selected_objects():
         )
 
         metadata_file = version_path / "metadata.json"
-        write_metadata(asset, metadata_file)
+
+        write_metadata(
+            asset,
+            metadata_file,
+        )
 
         try:
             mongo_id = save_asset(asset.to_mongo_dict())
+
             print(f"Saved asset metadata to MongoDB: {mongo_id}")
 
             shutil.rmtree(version_path)
+
             asset_folder = version_path.parent
             type_folder = asset_folder.parent
 
@@ -326,10 +425,14 @@ def publish_selected_objects():
         )
 
     skipped_objects = [item["name"] for item in summary["skipped"]]
+
     skipped_objects = [obj for obj in skipped_objects if cmds.objExists(obj)]
 
     if skipped_objects:
-        cmds.select(skipped_objects, replace=True)
+        cmds.select(
+            skipped_objects,
+            replace=True,
+        )
     else:
         cmds.select(clear=True)
 

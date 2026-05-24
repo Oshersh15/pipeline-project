@@ -9,6 +9,15 @@ APPLY_WORLD_TRANSFORM = True
 
 
 def open_usd_stage(usd_file: Path) -> Optional[Usd.Stage]:
+    """
+    Open a USD stage from disk.
+
+    Args:
+        usd_file (Path): Path to the USD file.
+
+    Returns:
+        Optional[Usd.Stage]: Opened USD stage, or None if the file cannot be opened.
+    """
     usd_file = Path(usd_file)
 
     if not usd_file.exists():
@@ -30,6 +39,15 @@ def open_usd_stage(usd_file: Path) -> Optional[Usd.Stage]:
 
 
 def get_first_root_prim(stage: Usd.Stage):
+    """
+    Return the first top-level prim in a USD stage.
+
+    Args:
+        stage (Usd.Stage): USD stage to inspect.
+
+    Returns:
+        Usd.Prim | None: First root prim, or None if the stage has no root prims.
+    """
     root_prims = list(stage.GetPseudoRoot().GetChildren())
 
     if not root_prims:
@@ -39,6 +57,16 @@ def get_first_root_prim(stage: Usd.Stage):
 
 
 def set_default_prim_if_missing(stage: Usd.Stage):
+    """
+    Set the first root prim as the defaultPrim if the stage does not already have one.
+
+    Args:
+        stage (Usd.Stage): USD stage to update.
+
+    Returns:
+        Usd.Prim | None: Existing or newly assigned default prim, or None if no
+        root prim exists.
+    """
     current_default = stage.GetDefaultPrim()
 
     if current_default:
@@ -51,10 +79,51 @@ def set_default_prim_if_missing(stage: Usd.Stage):
         return None
 
     stage.SetDefaultPrim(root_prim)
+
     return root_prim
 
 
+def validate_exported_usd(stage: Usd.Stage) -> dict:
+    """
+    Validate the basic structure of an exported USD stage.
+
+    The validation is intentionally lightweight and focuses on requirements
+    needed by the publishing workflow, such as root prims and defaultPrim setup.
+
+    Args:
+        stage (Usd.Stage): USD stage to validate.
+
+    Returns:
+        dict: Dictionary containing lists of warnings and errors.
+    """
+    results = {
+        "warnings": [],
+        "errors": [],
+    }
+
+    default_prim = stage.GetDefaultPrim()
+
+    if not default_prim:
+        results["warnings"].append("USD file has no defaultPrim.")
+
+    root_prim = get_first_root_prim(stage)
+
+    if not root_prim:
+        results["errors"].append("USD file contains no root prims.")
+
+    return results
+
+
 def maya_matrix_to_gf_matrix(world_matrix: list[float]) -> Gf.Matrix4d:
+    """
+    Convert a Maya world matrix list into a USD Gf.Matrix4d.
+
+    Args:
+        world_matrix (list[float]): Flat 16-value matrix returned from Maya.
+
+    Returns:
+        Gf.Matrix4d: USD-compatible transformation matrix.
+    """
     matrix = Gf.Matrix4d(1.0)
 
     matrix.SetRow(0, Gf.Vec4d(*world_matrix[0:4]))
@@ -66,6 +135,13 @@ def maya_matrix_to_gf_matrix(world_matrix: list[float]) -> Gf.Matrix4d:
 
 
 def apply_world_transform(stage: Usd.Stage, world_matrix: list[float]):
+    """
+    Apply the original Maya world transform to the USD defaultPrim.
+
+    Args:
+        stage (Usd.Stage): USD stage to modify.
+        world_matrix (list[float]): Maya world matrix captured before export.
+    """
     root_prim = stage.GetDefaultPrim()
 
     if not root_prim:
@@ -86,6 +162,17 @@ def add_publish_metadata(
     author: str,
     source_scene: str,
 ):
+    """
+    Add publish metadata to the USD defaultPrim as custom data.
+
+    Args:
+        stage (Usd.Stage): USD stage to update.
+        asset_name (str): Published asset name.
+        asset_type (str): Published asset type/category.
+        version (str): Published version string.
+        author (str): Username of the publishing user.
+        source_scene (str): Source Maya scene path.
+    """
     root_prim = stage.GetDefaultPrim()
 
     if not root_prim:
@@ -108,6 +195,25 @@ def process_exported_usd(
     source_scene: str,
     world_matrix: list[float],
 ) -> dict:
+    """
+    Post-process and validate a USD file exported from Maya.
+
+    This function opens the exported USD, assigns a defaultPrim if required,
+    optionally applies the original Maya world transform, embeds publish
+    metadata, validates the stage, and saves the updated root layer.
+
+    Args:
+        usd_file (Path): Path to the exported USD file.
+        asset_name (str): Published asset name.
+        asset_type (str): Published asset type/category.
+        version (str): Published version string.
+        author (str): Username of the publishing user.
+        source_scene (str): Source Maya scene path.
+        world_matrix (list[float]): Maya world matrix captured before export.
+
+    Returns:
+        dict: Result dictionary containing success state, warnings, and errors.
+    """
     stage = open_usd_stage(usd_file)
 
     if not stage:
@@ -127,7 +233,10 @@ def process_exported_usd(
         }
 
     if APPLY_WORLD_TRANSFORM:
-        apply_world_transform(stage, world_matrix)
+        apply_world_transform(
+            stage,
+            world_matrix,
+        )
         print("Applied original Maya world transform to USD root.")
     else:
         print("Skipped USD world transform application for debugging.")
@@ -171,23 +280,3 @@ def process_exported_usd(
         "warnings": validation_results["warnings"],
         "errors": [],
     }
-
-
-def validate_exported_usd(stage: Usd.Stage) -> dict:
-
-    results = {
-        "warnings": [],
-        "errors": [],
-    }
-
-    default_prim = stage.GetDefaultPrim()
-
-    if not default_prim:
-        results["warnings"].append("USD file has no defaultPrim.")
-
-    root_prim = get_first_root_prim(stage)
-
-    if not root_prim:
-        results["errors"].append("USD file contains no root prims.")
-
-    return results

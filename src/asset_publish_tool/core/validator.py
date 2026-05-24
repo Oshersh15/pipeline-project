@@ -11,10 +11,27 @@ AVAILABLE_VALIDATION_CHECKS = [
 
 
 class ValidationError(Exception):
-    pass
+    """Raised when validation configuration or validation logic fails."""
+
+
+# ----------------------------------------------------------------------
+# Validation configuration
+# ----------------------------------------------------------------------
 
 
 def load_validation_rules(config_path: Path) -> dict:
+    """
+    Load validation rules from a JSON configuration file.
+
+    Args:
+        config_path (Path): Path to the validation rules JSON file.
+
+    Returns:
+        dict: Loaded validation rule data.
+
+    Raises:
+        FileNotFoundError: If the configuration file does not exist.
+    """
     if not config_path.exists():
         raise FileNotFoundError(f"Validation config not found: {config_path}")
 
@@ -22,7 +39,22 @@ def load_validation_rules(config_path: Path) -> dict:
         return json.load(file)
 
 
+# ----------------------------------------------------------------------
+# Object type validation
+# ----------------------------------------------------------------------
+
+
 def identify_object_type(object_name: str, rules: dict):
+    """
+    Identify an asset type based on configured naming patterns.
+
+    Args:
+        object_name (str): Maya object name.
+        rules (dict): Loaded validation rules.
+
+    Returns:
+        str | None: Matching object type, or None if no pattern matches.
+    """
     object_rules = rules["scene_object_rules"]
 
     for object_type, rule_data in object_rules.items():
@@ -34,7 +66,25 @@ def identify_object_type(object_name: str, rules: dict):
     return None
 
 
-def validate_name_checks(object_name: str, required_checks: list[str]) -> list[str]:
+# ----------------------------------------------------------------------
+# Name validation
+# ----------------------------------------------------------------------
+
+
+def validate_name_checks(
+    object_name: str,
+    required_checks: list[str],
+) -> list[str]:
+    """
+    Validate an object name against configured naming checks.
+
+    Args:
+        object_name (str): Maya object name.
+        required_checks (list[str]): Validation checks to apply.
+
+    Returns:
+        list[str]: Validation error messages.
+    """
     errors = []
 
     if not object_name:
@@ -54,10 +104,40 @@ def validate_name_checks(object_name: str, required_checks: list[str]) -> list[s
     return errors
 
 
-def validate_scene_object(object_name: str, rules: dict, maya_object_type=None) -> dict:
+# ----------------------------------------------------------------------
+# Scene validation
+# ----------------------------------------------------------------------
+
+
+def validate_scene_object(
+    object_name: str,
+    rules: dict,
+    maya_object_type=None,
+) -> dict:
+    """
+    Validate a Maya scene object against configured publish rules.
+
+    Validation includes:
+    - naming pattern validation
+    - object type matching
+    - required naming checks
+    - export eligibility
+
+    Args:
+        object_name (str): Maya object name.
+        rules (dict): Loaded validation rules.
+        maya_object_type (str, optional): Detected Maya object type.
+
+    Returns:
+        dict: Validation result dictionary containing object type,
+        validation state, export eligibility, and error messages.
+    """
     errors = []
 
-    name_object_type = identify_object_type(object_name, rules)
+    name_object_type = identify_object_type(
+        object_name,
+        rules,
+    )
 
     if name_object_type is None:
         errors.append("Object name does not match any known type pattern.")
@@ -67,8 +147,12 @@ def validate_scene_object(object_name: str, rules: dict, maya_object_type=None) 
 
         if name_object_type and name_object_type != maya_object_type:
             errors.append(
-                f"Name suggests '{name_object_type}', but Maya object type is '{maya_object_type}'."
+                (
+                    f"Name suggests '{name_object_type}', "
+                    f"but Maya object type is '{maya_object_type}'."
+                )
             )
+
     else:
         object_type = name_object_type or "unknown"
 
@@ -81,16 +165,30 @@ def validate_scene_object(object_name: str, rules: dict, maya_object_type=None) 
             "errors": errors,
         }
 
-    object_rule = rules["scene_object_rules"].get(object_type, {})
-    required_checks = object_rule.get("required_checks", [])
+    object_rule = rules["scene_object_rules"].get(
+        object_type,
+        {},
+    )
 
-    name_errors = validate_name_checks(object_name, required_checks)
+    required_checks = object_rule.get(
+        "required_checks",
+        [],
+    )
+
+    name_errors = validate_name_checks(
+        object_name,
+        required_checks,
+    )
+
     errors.extend(name_errors)
 
     return {
         "name": object_name,
         "type": object_type,
         "valid": len(errors) == 0,
-        "export_to_usd": object_rule.get("export_to_usd", False),
+        "export_to_usd": object_rule.get(
+            "export_to_usd",
+            False,
+        ),
         "errors": errors,
     }

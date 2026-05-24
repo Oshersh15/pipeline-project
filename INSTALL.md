@@ -1,26 +1,26 @@
 # Asset Publish Tool - Installation Guide
 
-## 1. Overview
+# Overview
 
-This project is a Maya-based asset publishing tool developed as part of a Pipeline TD workflow.
+This project is a Maya-based asset publishing and validation tool developed for pipeline-oriented DCC workflows.
 
-Current features include:
+The tool supports:
 
-- Scene validation
-- Naming convention validation
-- Automatic naming fixes
-- Versioned publishing
-- OBJ export
-- USD export
-- Viewport preview generation
-- PySide6/PySide2 UI
-- MongoDB backend integration
+- Asset validation
+- Automatic naming correction
+- Version-controlled publishing
+- USD and OBJ export
+- Preview image generation
+- MongoDB/GridFS integration
+- Asset retrieval to local cache
+- Role-based authentication
+- Maya integration using PySide2 / PySide6
 
-Published asset metadata is currently stored in MongoDB, while exported files are stored locally.
+Published assets are packaged and stored using MongoDB GridFS, while metadata is stored separately for backend-driven asset browsing and querying.
 
 ---
 
-# 2. Requirements
+# Requirements
 
 Minimum tested environment:
 
@@ -29,13 +29,12 @@ Minimum tested environment:
 | Python | 3.11+ |
 | Autodesk Maya | 2023 |
 | MongoDB | 7 |
-| Podman |  |
 
 Tested on macOS.
 
 ---
 
-# 3. Clone Repository
+# Clone Repository
 
 Clone the repository and move into the project directory:
 
@@ -46,7 +45,7 @@ cd pipelineproject-Oshersh15
 
 ---
 
-# 4. Python Environment Setup
+# Python Environment Setup
 
 Create a virtual environment:
 
@@ -54,23 +53,25 @@ Create a virtual environment:
 python -m venv .venv
 ```
 
-Activate the environment:
+Activate the environment.
 
-## macOS/Linux
+## macOS / Linux
 
 ```bash
 source .venv/bin/activate
 ```
 
-Install required packages:
+Install required Python packages:
 
 ```bash
-pip install pymongo
+pip install pymongo pytest
 ```
+
+Additional packages may be required depending on the local Maya and USD installation.
 
 ---
 
-# 5. MongoDB Backend Setup
+# MongoDB Setup
 
 Install Podman using Homebrew:
 
@@ -84,7 +85,7 @@ Start the Podman machine:
 podman machine start
 ```
 
-Run MongoDB container:
+Run the MongoDB container:
 
 ```bash
 podman run -d \
@@ -93,7 +94,7 @@ podman run -d \
 mongo:7
 ```
 
-Check that the container is running:
+Verify that the container is running:
 
 ```bash
 podman ps
@@ -101,31 +102,31 @@ podman ps
 
 ---
 
-# 6. Install PyMongo Into Maya
+# Install Python Packages Into Maya
 
-PyMongo must also be installed inside Maya's embedded Python interpreter (`mayapy`).
+Required packages must also be installed inside Maya's embedded Python interpreter (`mayapy`).
 
-Install using:
+Example:
 
 ```bash
-/Applications/Autodesk/maya2023/Maya.app/Contents/bin/mayapy -m pip install pymongo
+mayapy -m pip install pymongo pytest
 ```
+
+Depending on the operating system and Maya installation, the full `mayapy` executable path may need to be specified manually.
 
 Restart Maya after installation.
 
 ---
 
-# 7. Install the Maya Module
+# Install the Maya Module
 
 Launch Autodesk Maya.
 
-Drag the file:
+Drag the following file directly into the Maya viewport:
 
 ```text
 drag_to_maya.py
 ```
-
-directly into the Maya viewport.
 
 The installer automatically:
 
@@ -133,52 +134,33 @@ The installer automatically:
 - Adds the project `src` directory to `PYTHONPATH`
 - Registers the project icon path through `XBMLANGPATH`
 - Creates an `AssetPublish` shelf
-- Adds a launcher shelf button for the tool UI
+- Adds a launcher shelf button
 
 No manual `sys.path` modification is required.
 
 ---
 
-# 8. Launching the Tool
+# Launching the Tool
 
-After installation, launch the tool directly from the Maya shelf:
+After installation, launch the tool from the Maya shelf:
 
 ```text
 AssetPublish → Asset Publish Tool
 ```
 
-This opens the PySide6/PySide2 publishing interface.
+This opens the publishing interface.
 
 ---
 
-# 9. Publishing Workflow
+# Database Information
 
-The current publishing workflow performs:
-
-1. Scene validation
-2. Naming convention validation
-3. Automatic versioning
-4. OBJ export (models only)
-5. USD export
-6. Viewport preview generation
-7. Metadata generation
-8. MongoDB metadata storage
-
-Published asset metadata is loaded directly from MongoDB into the UI.
-
----
-
-# 10. MongoDB Integration
-
-MongoDB is currently used as the backend source for published asset metadata.
-
-Connection URI:
+Default MongoDB connection:
 
 ```text
 mongodb://localhost:27017
 ```
 
-Database:
+Database name:
 
 ```text
 asset_publish_tool_db
@@ -190,17 +172,30 @@ Collection:
 assets
 ```
 
-MongoDB Compass can optionally be used to inspect published asset documents visually.
+MongoDB Compass can optionally be used to inspect stored metadata and GridFS package data.
 
 ---
 
-# 11. Current Limitations
+# Testing
 
-Current limitations include:
+Run unit and integration tests:
 
-- Exported asset files are still stored locally
-- GridFS asset storage is not yet implemented
-- No authentication system yet
-- No remote deployment yet
+```bash
+PYTHONPATH=src pytest tests/unit tests/integration
+```
 
-These systems are planned as future extensions of the project.
+Run Maya integration tests using `mayapy`:
+
+```bash
+PYTHONPATH=src mayapy -m pytest tests/maya
+```
+
+Depending on the operating system and Maya installation, the full `mayapy` executable path may need to be specified manually.
+
+---
+
+# Notes
+
+The project focuses primarily on asset-level publishing workflows and USD interoperability between DCC applications.
+
+Cross-DCC testing was validated by retrieving published USD assets from GridFS, extracting them to a local cache, and loading them into Houdini Solaris using a Sublayer workflow.

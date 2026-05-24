@@ -185,7 +185,7 @@ The project includes:
 Run unit and integration tests:
 
 ```bash
-PYTHONPATH=src pytest
+PYTHONPATH=src pytest tests/unit tests/integration
 ```
 
 Run Maya integration tests using `mayapy`:
