@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from pxr import Gf, Usd, UsdGeom, UsdShade
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 # Preserves original Maya world placement on exported USD assets.
 # Useful for environment reconstruction workflows.
