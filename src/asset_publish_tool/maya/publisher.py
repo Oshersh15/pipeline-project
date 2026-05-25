@@ -166,6 +166,46 @@ def get_material_assignment_warnings(obj):
     return warnings
 
 
+def get_primary_material_color(obj):
+    shapes = (
+        cmds.listRelatives(
+            obj,
+            shapes=True,
+            fullPath=True,
+        )
+        or []
+    )
+
+    for shape in shapes:
+        shading_groups = (
+            cmds.listConnections(
+                shape,
+                type="shadingEngine",
+            )
+            or []
+        )
+
+        for shading_group in shading_groups:
+            shaders = (
+                cmds.listConnections(
+                    f"{shading_group}.surfaceShader",
+                    source=True,
+                    destination=False,
+                )
+                or []
+            )
+
+            for shader in shaders:
+                if cmds.attributeQuery(
+                    "color",
+                    node=shader,
+                    exists=True,
+                ):
+                    return cmds.getAttr(f"{shader}.color")[0]
+
+    return None
+
+
 # ----------------------------------------------------------------------
 # Publishing
 # ----------------------------------------------------------------------
@@ -342,6 +382,7 @@ def publish_selected_objects():
                 defaultUSDFormat="usda",
             )
 
+        material_color = get_primary_material_color(obj)
         usd_processed = process_exported_usd(
             usd_file=usd_export_file,
             asset_name=asset_name,
@@ -350,6 +391,7 @@ def publish_selected_objects():
             author=author,
             source_scene=source_scene,
             world_matrix=world_matrix,
+            material_color=material_color,
         )
 
         if not usd_processed["success"]:

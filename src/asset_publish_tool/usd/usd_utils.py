@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom, UsdShade
 
 # Preserves original Maya world placement on exported USD assets.
 # Useful for environment reconstruction workflows.
@@ -186,6 +186,52 @@ def add_publish_metadata(
     root_prim.SetCustomDataByKey("source_scene", source_scene)
 
 
+def add_fallback_preview_material(stage: Usd.Stage, color: tuple[float, float, float]):
+    root_prim = stage.GetDefaultPrim()
+
+    if not root_prim:
+        print("No defaultPrim found, so fallback material was not added.")
+        return
+
+    binding_api = UsdShade.MaterialBindingAPI(root_prim)
+    existing_binding = binding_api.GetDirectBinding().GetMaterial()
+
+    if existing_binding:
+        return
+
+    material_path = root_prim.GetPath().AppendPath("Looks/fallback_preview_material")
+    shader_path = material_path.AppendPath("PreviewSurface")
+
+    material = UsdShade.Material.Define(stage, material_path)
+    shader = UsdShade.Shader.Define(stage, shader_path)
+
+    shader.CreateIdAttr("UsdPreviewSurface")
+
+    shader.CreateInput(
+        "diffuseColor",
+        Sdf.ValueTypeNames.Color3f,
+    ).Set(Gf.Vec3f(*color))
+
+    shader.CreateInput(
+        "roughness",
+        Sdf.ValueTypeNames.Float,
+    ).Set(0.5)
+
+    shader.CreateOutput(
+        "surface",
+        Sdf.ValueTypeNames.Token,
+    )
+
+    material.CreateSurfaceOutput().ConnectToSource(
+        shader.ConnectableAPI(),
+        "surface",
+    )
+
+    UsdShade.MaterialBindingAPI.Apply(root_prim).Bind(material)
+
+    print("Added fallback USD preview material.")
+
+
 def process_exported_usd(
     usd_file: Path,
     asset_name: str,
@@ -194,6 +240,7 @@ def process_exported_usd(
     author: str,
     source_scene: str,
     world_matrix: list[float],
+    material_color: tuple[float, float, float] | None = None,
 ) -> dict:
     """
     Post-process and validate a USD file exported from Maya.
@@ -249,6 +296,12 @@ def process_exported_usd(
         author=author,
         source_scene=source_scene,
     )
+
+    if material_color:
+        add_fallback_preview_material(
+            stage,
+            material_color,
+        )
 
     validation_results = validate_exported_usd(stage)
 
