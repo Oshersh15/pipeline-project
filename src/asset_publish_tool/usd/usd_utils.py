@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
@@ -240,7 +240,7 @@ def process_exported_usd(
     author: str,
     source_scene: str,
     world_matrix: list[float],
-    material_color: tuple[float, float, float] | None = None,
+    material_color: Optional[Tuple[float, float, float]] = None,
 ) -> dict:
     """
     Post-process and validate a USD file exported from Maya.
