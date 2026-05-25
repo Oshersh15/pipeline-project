@@ -324,6 +324,24 @@ def publish_selected_objects():
             defaultUSDFormat="usda",
         )
 
+        usd_text = usd_export_file.read_text(encoding="utf-8")
+
+        if "material:binding" not in usd_text:
+            print(
+                "Material binding missing after USD export. "
+                "Retrying without material conversion."
+            )
+
+            cmds.mayaUSDExport(
+                file=str(usd_export_file),
+                selection=True,
+                exportRoots=[obj],
+                shadingMode="useRegistry",
+                exportUVs=True,
+                exportColorSets=True,
+                defaultUSDFormat="usda",
+            )
+
         usd_processed = process_exported_usd(
             usd_file=usd_export_file,
             asset_name=asset_name,
