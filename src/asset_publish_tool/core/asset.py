@@ -29,12 +29,12 @@ class Asset:
             "author": self.author,
             "exports": self.exports,
             "created_at": self.created_at,
-            "package_file_id": self.package_file_id,
         }
 
     def to_mongo_dict(self) -> dict:
         data = self.to_dict()
 
+        data["package_file_id"] = self.package_file_id
         data["preview_image"] = self.preview_image
 
         return data

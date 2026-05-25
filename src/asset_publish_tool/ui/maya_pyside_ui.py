@@ -461,6 +461,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
             )
             table.verticalHeader().setDefaultSectionSize(35)
 
+        table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
         table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         table.setSortingEnabled(True)

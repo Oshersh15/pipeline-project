@@ -365,15 +365,6 @@ def publish_selected_objects():
 
             print(f"Preview capture failed for {asset_name}: {e}")
 
-        package = create_publish_package(version_path)
-
-        package_name = f"{asset_name}_{version}.zip"
-
-        package_file_id = store_publish_package(
-            package,
-            package_name,
-        )
-
         asset = Asset(
             name=asset_name,
             asset_type=asset_type,
@@ -386,16 +377,26 @@ def publish_selected_objects():
                 "usd": str(usd_export_file),
                 "preview": preview_path,
             },
-            package_file_id=str(package_file_id),
             preview_image=preview_image,
         )
 
-        metadata_file = version_path / "metadata.json"
+        metadata_file = version_path / f"{asset_name}_metadata.json"
 
         write_metadata(
             asset,
             metadata_file,
         )
+
+        package = create_publish_package(version_path)
+
+        package_name = f"{asset_name}_{version}.zip"
+
+        package_file_id = store_publish_package(
+            package,
+            package_name,
+        )
+
+        asset.package_file_id = str(package_file_id)
 
         try:
             mongo_id = save_asset(asset.to_mongo_dict())

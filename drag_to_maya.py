@@ -10,7 +10,8 @@ BUTTON_LABEL = "AssetPublish"
 
 
 def install_module():
-    project_root = Path(__file__).parent
+    project_root = Path(__file__).parent.resolve()
+    project_root_path = project_root.as_posix()
 
     user_dir = Path(cmds.internalVar(userAppDir=True))
     modules_dir = user_dir / "modules"
@@ -19,12 +20,15 @@ def install_module():
 
     mod_file_path = modules_dir / f"{MODULE_NAME}.mod"
 
-    mod_content = f"""+ {MODULE_NAME} 1.0 {project_root}
+    mod_content = f"""+ {MODULE_NAME} 1.0 {project_root_path}
 PYTHONPATH +:= src
 XBMLANGPATH +:= icons
 """
 
     mod_file_path.write_text(mod_content, encoding="utf-8")
+
+    cmds.loadModule(scan=True)
+    cmds.loadModule(load=MODULE_NAME)
 
 
 def onMayaDroppedPythonFile(*args):  # noqa: N802
@@ -111,4 +115,4 @@ def find_button():
 
 
 def get_icon_path():
-    return Path(__file__).parent / "icons" / "asset_publish_icon.png"
+    return (Path(__file__).parent / "icons" / "asset_publish_icon.png").resolve()
