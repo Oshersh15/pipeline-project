@@ -26,11 +26,11 @@ def import_asset_package(package_file_id):
 
     usd_file = usd_candidates[0]
 
-    cmds.file(
-        str(usd_file),
-        i=True,
-        type="USD Import",
-        ignoreVersion=True,
+    if not cmds.pluginInfo("mayaUsdPlugin", query=True, loaded=True):
+        cmds.loadPlugin("mayaUsdPlugin")
+
+    cmds.mayaUSDImport(
+        file=str(usd_file),
     )
 
     return str(usd_file)
