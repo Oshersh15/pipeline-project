@@ -1,9 +1,21 @@
+"""
+Viewport preview generation utilities for Maya assets.
+
+This module creates isolated viewport previews used during the
+publishing workflow. Temporary duplicate geometry is normalised,
+framed in the active model panel, and captured as preview images
+without modifying the original scene content.
+"""
+
 from pathlib import Path
 
 import maya.cmds as cmds
 
 
 def _get_model_panel():
+    """
+    Return the active Maya model panel used for viewport capture.
+    """
     panel = cmds.getPanel(withFocus=True)
 
     if panel and cmds.getPanel(typeOf=panel) == "modelPanel":
@@ -33,6 +45,12 @@ def _get_panel_camera(panel):
 
 
 def _store_camera_state(panel):
+    """
+    Store the current viewport camera transform and display settings.
+
+    This allows preview capture to temporarily modify the viewport
+    camera while restoring the user's original state afterwards.
+    """
     camera_transform, camera_shape = _get_panel_camera(panel)
 
     state = {
@@ -64,6 +82,9 @@ def _store_camera_state(panel):
 
 
 def _restore_camera_state(state):
+    """
+    Restore previously stored viewport camera settings.
+    """
     camera_transform = state.get("camera_transform")
     camera_shape = state.get("camera_shape")
 
@@ -86,6 +107,12 @@ def _restore_camera_state(state):
 
 
 def _collect_mesh_transforms(obj):
+    """
+    Collect mesh transform nodes from an object hierarchy.
+
+    This includes both directly assigned mesh shapes and descendant
+    mesh objects used for preview generation.
+    """
     mesh_transforms = []
 
     shapes = cmds.listRelatives(obj, shapes=True, fullPath=True) or []
@@ -113,6 +140,13 @@ def _collect_mesh_transforms(obj):
 
 
 def _create_normalised_preview_group(obj):
+    """
+    Create a temporary normalised duplicate group for preview capture.
+
+    The duplicated geometry is centred and uniformly scaled so assets
+    produce consistent viewport previews regardless of original size
+    or scene placement.
+    """
     mesh_transforms = _collect_mesh_transforms(obj)
 
     if not mesh_transforms:
@@ -156,6 +190,20 @@ def _create_normalised_preview_group(obj):
 
 
 def capture_viewport_preview(obj, output_path):
+    """
+    Capture a viewport preview image for a Maya asset.
+
+    The workflow temporarily isolates duplicated geometry in the active
+    model panel, frames the asset, captures a playblast image, and then
+    restores the original viewport and selection state.
+
+    Args:
+        obj (str): Maya object to preview.
+        output_path (Path | str): Output preview image path.
+
+    Returns:
+        str: Final preview image path.
+    """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 

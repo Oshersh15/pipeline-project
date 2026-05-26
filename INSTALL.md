@@ -30,7 +30,7 @@ Minimum tested environment:
 | Autodesk Maya | 2023 |
 | MongoDB | 7 |
 
-Tested on macOS.
+Tested on macOS and Linux.
 
 ---
 
@@ -67,11 +67,13 @@ Install required Python packages:
 pip install pymongo pytest
 ```
 
-Additional packages may be required depending on the local Maya and USD installation.
+Additional packages or plugins may be required depending on the local Maya and USD installation.
 
 ---
 
-# MongoDB Setup
+# MongoDB Backend Setup
+
+## macOS
 
 Install Podman using Homebrew:
 
@@ -85,20 +87,40 @@ Start the Podman machine:
 podman machine start
 ```
 
-Run the MongoDB container:
+## Linux
+
+On Linux, Podman usually runs natively, so `podman machine start` is typically not required.
+
+Check whether Podman is available:
+
+```bash
+podman ps
+```
+
+---
+
+Run MongoDB container:
 
 ```bash
 podman run -d \
 --name asset-publish-mongo \
 -p 27017:27017 \
-mongo:7
+docker.io/library/mongo:7
 ```
 
-Verify that the container is running:
+Check that the container is running:
 
 ```bash
 podman ps
 ```
+
+This tool expects MongoDB to be available at:
+
+```text
+localhost:27017
+```
+
+If another MongoDB container is already using this port, stop it before launching the tool.
 
 ---
 
@@ -115,6 +137,8 @@ mayapy -m pip install pymongo pytest
 Depending on the operating system and Maya installation, the full `mayapy` executable path may need to be specified manually.
 
 Restart Maya after installation.
+
+The `mayaUsdPlugin` plugin must be available and loaded in Maya for USD import and export workflows.
 
 ---
 
@@ -191,6 +215,12 @@ PYTHONPATH=src mayapy -m pytest tests/maya
 ```
 
 Depending on the operating system and Maya installation, the full `mayapy` executable path may need to be specified manually.
+
+Example Linux path:
+
+```bash
+PYTHONPATH=src /opt/autodesk/maya/bin/mayapy -m pytest tests/maya
+```
 
 ---
 

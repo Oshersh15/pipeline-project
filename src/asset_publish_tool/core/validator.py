@@ -1,3 +1,10 @@
+"""
+Validation utilities for Maya scene objects.
+
+This module handles naming validation, object type validation,
+and rule-based publish checks used by the asset publishing pipeline.
+"""
+
 import json
 import re
 from pathlib import Path

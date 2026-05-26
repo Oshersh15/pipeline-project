@@ -116,7 +116,7 @@ def validate_selected_objects():
 
 
 # ----------------------------------------------------------------------
-# Material warnings
+# Material utilities
 # ----------------------------------------------------------------------
 
 
@@ -167,6 +167,20 @@ def get_material_assignment_warnings(obj):
 
 
 def get_primary_material_color(obj):
+    """
+    Retrieve the primary display colour from a Maya material assignment.
+
+    This colour is used as a fallback preview material colour when exported
+    USD files do not contain valid material bindings. This helps preserve
+    basic visual identification across different MayaUSD environments.
+
+    Args:
+        obj (str): Maya transform object name.
+
+    Returns:
+        tuple[float, float, float] | None:
+            RGB colour from the assigned shader, or None if unavailable.
+    """
     shapes = (
         cmds.listRelatives(
             obj,
@@ -216,8 +230,8 @@ def publish_selected_objects():
     Publish selected Maya scene assets to the asset management system.
 
     The publishing workflow performs validation, export, USD post-processing,
-    metadata generation, package creation, GridFS storage, and MongoDB
-    metadata registration.
+    fallback material generation when required, metadata generation,
+    package creation, GridFS storage, and MongoDB metadata registration.
 
     Returns:
         dict: Summary containing published assets, skipped assets, and warnings.
@@ -364,6 +378,9 @@ def publish_selected_objects():
             defaultUSDFormat="usda",
         )
 
+        # Some MayaUSD environments may export geometry without material
+        # bindings. If no binding is detected, retry export using a simpler
+        # material conversion workflow.
         usd_text = usd_export_file.read_text(encoding="utf-8")
 
         if "material:binding" not in usd_text:
@@ -382,7 +399,10 @@ def publish_selected_objects():
                 defaultUSDFormat="usda",
             )
 
+        # Capture a simple display colour from Maya to support fallback
+        # USD preview material generation across DCC environments.
         material_color = get_primary_material_color(obj)
+
         usd_processed = process_exported_usd(
             usd_file=usd_export_file,
             asset_name=asset_name,

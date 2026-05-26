@@ -187,6 +187,20 @@ def add_publish_metadata(
 
 
 def add_fallback_preview_material(stage: Usd.Stage, color: tuple[float, float, float]):
+    """
+    Create and bind a simple fallback UsdPreviewSurface material.
+
+    Some MayaUSD environments may export geometry without material bindings.
+    This fallback material preserves a basic preview colour so assets remain
+    visually identifiable when imported into other DCC applications.
+
+    The material is only created if no existing material binding is found.
+
+    Args:
+        stage (Usd.Stage): USD stage to modify.
+        color (tuple[float, float, float]): RGB colour sampled from the
+            original Maya material.
+    """
     root_prim = stage.GetDefaultPrim()
 
     if not root_prim:
@@ -247,7 +261,8 @@ def process_exported_usd(
 
     This function opens the exported USD, assigns a defaultPrim if required,
     optionally applies the original Maya world transform, embeds publish
-    metadata, validates the stage, and saves the updated root layer.
+    metadata, optionally creates a fallback preview material, validates
+    the stage, and saves the updated root layer.
 
     Args:
         usd_file (Path): Path to the exported USD file.
@@ -257,6 +272,9 @@ def process_exported_usd(
         author (str): Username of the publishing user.
         source_scene (str): Source Maya scene path.
         world_matrix (list[float]): Maya world matrix captured before export.
+        material_color (Optional[Tuple[float, float, float]]):
+            Optional RGB colour used for fallback material generation when
+            material bindings are missing from the exported USD.
 
     Returns:
         dict: Result dictionary containing success state, warnings, and errors.

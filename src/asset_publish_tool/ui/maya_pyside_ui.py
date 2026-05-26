@@ -1,3 +1,11 @@
+"""
+Main PySide user interface for the Maya asset publishing tool.
+
+This module provides the authentication dialogs, administrative
+settings panels, published asset browser, and publishing workflow
+controls used throughout the pipeline tool.
+"""
+
 import importlib.util
 import os
 import platform
@@ -38,6 +46,12 @@ def get_maya_main_window():
 
 
 class InitialSetupDialog(QtWidgets.QDialog):
+    """
+    Dialog used to create the initial administrator account.
+
+    Displayed automatically when no admin user exists in the database.
+    """
+
     def __init__(self, parent=get_maya_main_window()):
         super().__init__(parent)
 
@@ -106,6 +120,10 @@ class InitialSetupDialog(QtWidgets.QDialog):
 
 
 class LoginDialog(QtWidgets.QDialog):
+    """
+    Authentication dialog for MongoDB-backed user login.
+    """
+
     def __init__(self, parent=get_maya_main_window()):
         super().__init__(parent)
 
@@ -166,6 +184,10 @@ def suffix_to_pattern(suffix):
 
 
 class AdminSettingsDialog(QtWidgets.QDialog):
+    """
+    Container dialog for administrator configuration tools.
+    """
+
     def __init__(self, admin_widget, parent=None):
         super().__init__(parent)
 
@@ -178,6 +200,13 @@ class AdminSettingsDialog(QtWidgets.QDialog):
 
 
 class PipelineToolWindow(QtWidgets.QDialog):
+    """
+    Main asset publishing interface for Maya.
+
+    This window provides validation, publishing, asset browsing,
+    retrieval, importing, and administrative management workflows.
+    """
+
     def __init__(self, parent=get_maya_main_window()):
         super().__init__(parent)
 
@@ -190,6 +219,12 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.apply_role_permissions()
 
     def build_ui(self):
+        """
+        Build the main interface layout.
+
+        The UI includes user information, action buttons, published asset
+        tables, search controls, and role-specific admin controls.
+        """
         layout = QtWidgets.QVBoxLayout(self)
 
         current_user = get_current_user()
@@ -269,6 +304,12 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.load_published_assets()
 
     def build_admin_settings_ui(self):
+        """
+        Build the administrator settings interface.
+
+        This includes user management controls and editable validation
+        rule settings for supported asset types.
+        """
         self.admin_settings_widget = QtWidgets.QWidget()
 
         admin_layout = QtWidgets.QVBoxLayout(self.admin_settings_widget)
@@ -724,6 +765,12 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.output.setText(f"Saved validation rules for '{asset_type}'.")
 
     def load_published_assets(self):
+        """
+        Load published assets from MongoDB into the asset browser tables.
+
+        Assets are grouped by type and name, with the latest version shown
+        in the table and older versions available through the version dropdown.
+        """
         self.model_table.setRowCount(0)
         self.camera_table.setRowCount(0)
         self.light_table.setRowCount(0)
@@ -780,6 +827,16 @@ class PipelineToolWindow(QtWidgets.QDialog):
     def _populate_asset_table_row(
         self, table, row, metadata, all_versions, show_preview=True
     ):
+        """
+        Populate one published asset row in an asset browser table.
+
+        Args:
+            table (QTableWidget): Target table widget.
+            row (int): Table row index.
+            metadata (dict): Latest metadata document for the asset.
+            all_versions (list): All available version documents for the asset.
+            show_preview (bool): Whether the table includes a preview column.
+        """
         asset_name = metadata.get("name", metadata.get("asset_name", ""))
         version = metadata.get("version", "")
         author = metadata.get("author", "")
@@ -823,10 +880,6 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         name_item = QtWidgets.QTableWidgetItem(asset_name)
         name_item.setData(QtCore.Qt.UserRole, metadata.get("package_file_id"))
-        name_item.setData(
-            QtCore.Qt.UserRole + 1,
-            str(metadata.get("_id")),
-        )
         name_item.setData(QtCore.Qt.UserRole + 1, str(metadata.get("_id")))
         table.setItem(row, name_column, name_item)
 
@@ -1021,10 +1074,6 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         if name_item:
             name_item.setData(QtCore.Qt.UserRole, metadata.get("package_file_id"))
-            name_item.setData(
-                QtCore.Qt.UserRole + 1,
-                str(metadata.get("_id")),
-            )
             name_item.setData(QtCore.Qt.UserRole + 1, str(metadata.get("_id")))
 
         table.setItem(row, author_column, QtWidgets.QTableWidgetItem(author))
@@ -1164,6 +1213,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.output.setText(output)
 
     def run_validation(self):
+        """
+        Run validation on the selected Maya scene objects and display the results.
+        """
         try:
             results = validate_selected_objects()
         except PermissionError as e:
@@ -1206,6 +1258,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.output.setText(output)
 
     def run_publish(self):
+        """
+        Publish selected Maya scene objects and display a publish summary.
+        """
         try:
             summary = publish_selected_objects()
         except PermissionError as e:
@@ -1262,6 +1317,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         return version_dropdown.currentData()
 
     def import_selected_asset(self):
+        """
+        Import the selected published asset package back into the current Maya scene.
+        """
         current_table = self.tabs.currentWidget()
         selected_rows = current_table.selectionModel().selectedRows()
 
@@ -1297,6 +1355,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.output.setText(f"Imported asset from:\n{imported_file}")
 
     def retrieve_selected_asset(self):
+        """
+        Retrieve the selected published asset package into the local asset cache.
+        """
         metadata = self.get_selected_asset_metadata()
 
         if not metadata:
@@ -1344,6 +1405,12 @@ window = None
 
 
 def show_ui():
+    """
+    Show the asset publishing tool UI.
+
+    This function handles initial admin setup, login, and creation of
+    the main PipelineToolWindow instance.
+    """
     global window
     from asset_publish_tool.auth.user_manager import admin_exists
     from asset_publish_tool.database.connection import get_database

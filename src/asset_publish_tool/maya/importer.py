@@ -1,3 +1,10 @@
+"""
+USD asset import utilities for Maya.
+
+This module handles extraction of published asset packages from
+GridFS-backed storage and imports USD assets back into Maya.
+"""
+
 import tempfile
 from pathlib import Path
 
@@ -9,6 +16,21 @@ from asset_publish_tool.database.asset_repository import (
 
 
 def import_asset_package(package_file_id):
+    """
+    Extract and import a published USD asset package into Maya.
+
+    The package is extracted to a temporary directory before the
+    contained USD/USDa asset is imported using MayaUSD.
+
+    Args:
+        package_file_id (str): GridFS package identifier.
+
+    Returns:
+        str: Path to the imported USD/USDa file.
+
+    Raises:
+        RuntimeError: If no USD/USDa file exists in the extracted package.
+    """
     temp_dir = Path(tempfile.mkdtemp(prefix="asset_import_"))
 
     extract_publish_package(

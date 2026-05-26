@@ -1,3 +1,11 @@
+"""
+Scene query and utility functions for Maya publishing workflows.
+
+This module provides helper functions for scene selection expansion,
+object type detection, transform validation, and other Maya-specific
+operations used throughout the asset publishing pipeline.
+"""
+
 import re
 from pathlib import Path
 

@@ -1,3 +1,10 @@
+"""
+User management utilities for authentication and role assignment.
+
+This module handles MongoDB-backed user creation, role retrieval,
+role updates, and account management for the publishing system.
+"""
+
 from pymongo.database import Database
 from pymongo.errors import OperationFailure
 
