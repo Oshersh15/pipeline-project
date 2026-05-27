@@ -597,6 +597,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.new_username_input.clear()
         self.new_password_input.clear()
         self.load_users_table()
+        self.users_table.viewport().update()
 
     def change_user_role(self, username):
         from asset_publish_tool.auth.user_manager import update_user_role
