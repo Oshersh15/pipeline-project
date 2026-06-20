@@ -39,7 +39,7 @@ Tested on macOS and Linux.
 Clone the repository and move into the project directory:
 
 ```bash
-git clone git@github.com:NCCA/pipelineproject-Oshersh15.git
+git clone git@github.com:Oshersh15/pipeline-project.git
 cd pipelineproject-Oshersh15
 ```
 
