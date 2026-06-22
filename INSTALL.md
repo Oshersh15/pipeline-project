@@ -73,6 +73,16 @@ Additional packages or plugins may be required depending on the local Maya and U
 
 # MongoDB Backend Setup
 
+This project uses MongoDB as the backend database and GridFS storage system.
+
+MongoDB is expected to run locally at:
+
+```text
+localhost:27017
+```
+
+The repository includes helper scripts for starting, stopping, and resetting the MongoDB Podman container.
+
 ## macOS
 
 Install Podman using Homebrew:
@@ -87,6 +97,12 @@ Start the Podman machine:
 podman machine start
 ```
 
+Then start MongoDB from the project root:
+
+```bash
+./scripts/mongo_up.sh
+```
+
 ## Linux
 
 On Linux, Podman usually runs natively, so `podman machine start` is typically not required.
@@ -97,9 +113,35 @@ Check whether Podman is available:
 podman ps
 ```
 
+Then start MongoDB from the project root:
+
+```bash
+./scripts/mongo_up.sh
+```
+
 ---
 
-Run MongoDB container:
+## Stopping MongoDB
+
+To stop the MongoDB container:
+
+```bash
+./scripts/mongo_down.sh
+```
+
+## Resetting MongoDB
+
+To remove the existing MongoDB container and start with a fresh database:
+
+```bash
+./scripts/mongo_reset.sh
+```
+
+This clears the stored users, asset metadata, and GridFS packages.
+
+## Manual Podman Command
+
+If preferred, MongoDB can also be started manually:
 
 ```bash
 podman run -d \
@@ -112,12 +154,6 @@ Check that the container is running:
 
 ```bash
 podman ps
-```
-
-This tool expects MongoDB to be available at:
-
-```text
-localhost:27017
 ```
 
 If another MongoDB container is already using this port, stop it before launching the tool.
