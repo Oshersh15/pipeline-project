@@ -6,22 +6,12 @@ settings panels, published asset browser, and publishing workflow
 controls used throughout the pipeline tool.
 """
 
-import importlib.util
 import os
 import platform
 import subprocess
 from pathlib import Path
 
 import maya.cmds as cmds
-
-if importlib.util.find_spec("PySide6"):
-    from PySide6 import QtCore, QtGui, QtWidgets
-    from shiboken6 import wrapInstance
-else:
-    from PySide2 import QtCore, QtGui, QtWidgets
-    from shiboken2 import wrapInstance
-
-import maya.OpenMayaUI as omui
 
 from asset_publish_tool.auth.roles import has_permission
 from asset_publish_tool.auth.session import (
@@ -38,11 +28,12 @@ from asset_publish_tool.maya.publisher import (
     validate_selected_objects,
 )
 from asset_publish_tool.maya.scene_utils import fix_selected_object_names
-
-
-def get_maya_main_window():
-    main_window_ptr = omui.MQtUtil.mainWindow()
-    return wrapInstance(int(main_window_ptr), QtWidgets.QWidget)
+from asset_publish_tool.ui.compat import (
+    QtCore,
+    QtGui,
+    QtWidgets,
+    get_maya_main_window,
+)
 
 
 class InitialSetupDialog(QtWidgets.QDialog):
