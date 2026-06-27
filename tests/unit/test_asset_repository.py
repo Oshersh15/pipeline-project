@@ -89,3 +89,35 @@ def test_get_next_asset_version_increments_latest_version(monkeypatch):
     )
 
     assert version == "v004"
+
+
+def test_retrieve_asset_to_cache_uses_shot_structure(monkeypatch, tmp_path):
+    extracted_paths = []
+
+    def fake_extract(package_file_id, output_dir):
+        extracted_paths.append(output_dir)
+
+    monkeypatch.setattr(
+        asset_repository,
+        "extract_publish_package",
+        fake_extract,
+    )
+
+    metadata = {
+        "name": "heroCharacter",
+        "asset_type": "shot_animation",
+        "version": "v001",
+        "package_file_id": "abc123",
+        "shot_name": "shot010",
+        "department": "animation",
+    }
+
+    result = asset_repository.retrieve_asset_to_cache(
+        metadata,
+        tmp_path,
+    )
+
+    expected = tmp_path / "shots" / "shot010" / "animation" / "heroCharacter" / "v001"
+
+    assert result == expected
+    assert extracted_paths[0] == expected

@@ -172,11 +172,18 @@ def retrieve_asset_to_cache(metadata, cache_root):
     asset_name = metadata.get("name", metadata.get("asset_name", "unknown_asset"))
     version = metadata.get("version", "unknown_version")
     package_file_id = metadata.get("package_file_id")
+    shot_name = metadata.get("shot_name")
+    department = metadata.get("department")
 
     if not package_file_id:
         raise ValueError(f"Asset '{asset_name}' has no package_file_id.")
 
-    cache_path = Path(cache_root) / asset_type / asset_name / version
+    if shot_name and department:
+        cache_path = (
+            Path(cache_root) / "shots" / shot_name / department / asset_name / version
+        )
+    else:
+        cache_path = Path(cache_root) / asset_type / asset_name / version
 
     extract_publish_package(
         package_file_id,
