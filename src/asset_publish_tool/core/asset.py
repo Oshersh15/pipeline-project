@@ -36,6 +36,14 @@ class Asset:
     version: str
     publish_path: str
     author: str
+    department: Optional[str] = None
+    shot_name: Optional[str] = None
+    publish_format: Optional[str] = None
+    source_dcc: Optional[str] = None
+    target_dcc: Optional[str] = None
+    frame_start: Optional[int] = None
+    frame_end: Optional[int] = None
+    scale_to_target: Optional[float] = None
 
     exports: dict = field(default_factory=dict)
 
@@ -60,6 +68,14 @@ class Asset:
             "version": self.version,
             "publish_path": str(self.publish_path) if self.publish_path else None,
             "author": self.author,
+            "department": self.department,
+            "shot_name": self.shot_name,
+            "publish_format": self.publish_format,
+            "source_dcc": self.source_dcc,
+            "target_dcc": self.target_dcc,
+            "frame_start": self.frame_start,
+            "frame_end": self.frame_end,
+            "scale_to_target": self.scale_to_target,
             "exports": self.exports,
             "created_at": self.created_at,
         }

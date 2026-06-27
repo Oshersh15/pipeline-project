@@ -86,3 +86,34 @@ def test_read_metadata_raises_file_not_found_for_missing_file(tmp_path):
 
     with pytest.raises(FileNotFoundError, match="Metadata file not found"):
         read_metadata(missing_file)
+
+
+def test_asset_to_dict_includes_shot_animation_context():
+    asset = Asset(
+        name="heroCharacter",
+        asset_type="shot_animation",
+        source_scene=Path("/project/scenes/shot010_anim.ma"),
+        version="v001",
+        publish_path="/tmp/publish/shots/shot010/animation/heroCharacter/v001",
+        author="animator_user",
+        department="animation",
+        shot_name="shot010",
+        publish_format="alembic",
+        source_dcc="maya",
+        target_dcc="houdini",
+        frame_start=1,
+        frame_end=120,
+        scale_to_target=0.01,
+    )
+
+    data = asset.to_dict()
+
+    assert data["asset_type"] == "shot_animation"
+    assert data["department"] == "animation"
+    assert data["shot_name"] == "shot010"
+    assert data["publish_format"] == "alembic"
+    assert data["source_dcc"] == "maya"
+    assert data["target_dcc"] == "houdini"
+    assert data["frame_start"] == 1
+    assert data["frame_end"] == 120
+    assert data["scale_to_target"] == 0.01
