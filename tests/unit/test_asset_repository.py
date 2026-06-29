@@ -121,3 +121,55 @@ def test_retrieve_asset_to_cache_uses_shot_structure(monkeypatch, tmp_path):
 
     assert result == expected
     assert extracted_paths[0] == expected
+
+
+def test_get_next_shot_asset_version_returns_v001_when_no_existing_publish(monkeypatch):
+    captured_query = {}
+
+    def fake_find_one(query, sort=None):
+        captured_query.update(query)
+        return None
+
+    fake_collection = SimpleNamespace(find_one=fake_find_one)
+
+    monkeypatch.setattr(
+        asset_repository,
+        "get_assets_collection",
+        lambda: fake_collection,
+    )
+
+    version = asset_repository.get_next_shot_asset_version(
+        "heroCharacter",
+        "shot_animation",
+        "shot010",
+        "animation",
+    )
+
+    assert version == "v001"
+    assert captured_query == {
+        "name": "heroCharacter",
+        "asset_type": "shot_animation",
+        "shot_name": "shot010",
+        "department": "animation",
+    }
+
+
+def test_get_next_shot_asset_version_increments_existing_publish(monkeypatch):
+    fake_collection = SimpleNamespace(
+        find_one=lambda query, sort=None: {"version": "v007"},
+    )
+
+    monkeypatch.setattr(
+        asset_repository,
+        "get_assets_collection",
+        lambda: fake_collection,
+    )
+
+    version = asset_repository.get_next_shot_asset_version(
+        "heroCharacter",
+        "shot_animation",
+        "shot010",
+        "animation",
+    )
+
+    assert version == "v008"

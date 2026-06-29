@@ -259,3 +259,42 @@ def get_next_asset_version(asset_name, asset_type):
     next_version_number = version_number + 1
 
     return f"v{next_version_number:03d}"
+
+
+def get_next_shot_asset_version(asset_name, asset_type, shot_name, department):
+    """
+    Calculate the next available publish version for a shot-based asset.
+
+    Versions are tracked per asset, shot, and department so that the same
+    character can have separate animation versions in different shots.
+
+    Args:
+        asset_name (str): Name of the asset or character.
+        asset_type (str): Type/category of publish, such as shot_animation.
+        shot_name (str): Standardised shot name, such as shot010.
+        department (str): Department name, such as animation.
+
+    Returns:
+        str: Next version string, or v001 if no matching publish is found.
+    """
+    collection = get_assets_collection()
+
+    latest_asset = collection.find_one(
+        {
+            "name": asset_name,
+            "asset_type": asset_type,
+            "shot_name": shot_name,
+            "department": department,
+        },
+        sort=[("version", -1)],
+    )
+
+    if not latest_asset:
+        return "v001"
+
+    latest_version = latest_asset["version"]
+
+    version_number = int(latest_version.replace("v", ""))
+    next_version_number = version_number + 1
+
+    return f"v{next_version_number:03d}"
