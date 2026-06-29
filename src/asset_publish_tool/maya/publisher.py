@@ -10,6 +10,7 @@ from asset_publish_tool.auth.session import (
 )
 from asset_publish_tool.core.asset import Asset
 from asset_publish_tool.core.metadata import write_metadata
+from asset_publish_tool.core.shot_naming import format_shot_name
 from asset_publish_tool.core.validator import (
     load_validation_rules,
     validate_scene_object,
@@ -17,6 +18,7 @@ from asset_publish_tool.core.validator import (
 from asset_publish_tool.database.asset_repository import (
     create_publish_package,
     get_next_asset_version,
+    get_next_shot_asset_version,
     load_binary_file,
     save_asset,
     store_publish_package,
@@ -518,3 +520,54 @@ def publish_selected_objects():
         cmds.select(clear=True)
 
     return summary
+
+
+def publish_animation_cache(
+    shot_number,
+    asset_name,
+    asset_type="shot_animation",
+    department="animation",
+):
+    """
+    Publish an animated character cache for a shot workflow.
+
+    Args:
+        shot_number (int | str): Shot number entered by the user.
+        asset_name (str): Character or asset name.
+
+    Returns:
+        dict: Information describing the publish.
+    """
+
+    current_user = get_current_user()
+
+    if not current_user:
+        raise RuntimeError("No user is currently logged in.")
+
+    selected_objects = cmds.ls(selection=True)
+
+    if not selected_objects:
+        raise RuntimeError("No objects selected.")
+
+    shot_name = format_shot_name(shot_number)
+
+    frame_start = int(
+        cmds.playbackOptions(
+            query=True,
+            min=True,
+        )
+    )
+
+    frame_end = int(
+        cmds.playbackOptions(
+            query=True,
+            max=True,
+        )
+    )
+
+    version = get_next_shot_asset_version(
+        asset_name,
+        asset_type,
+        shot_name,
+        department,
+    )
