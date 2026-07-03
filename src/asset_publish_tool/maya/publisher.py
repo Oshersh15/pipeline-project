@@ -571,3 +571,44 @@ def publish_animation_cache(
         shot_name,
         department,
     )
+
+    project_root = Path(__file__).resolve().parents[3]
+
+    version_path = (
+        project_root
+        / "tmp_publish_cache"
+        / "shots"
+        / shot_name
+        / department
+        / asset_name
+        / version
+    )
+
+    version_path.mkdir(parents=True, exist_ok=True)
+    alembic_file = version_path / f"{shot_name}_{asset_name}_anim.abc"
+
+    if not cmds.pluginInfo(
+        "AbcExport",
+        query=True,
+        loaded=True,
+    ):
+
+    cmds.loadPlugin("AbcExport")
+
+    root_args = " ".join(
+        f"-root {obj}"
+        for obj in selected_objects
+    )
+
+    job_parts = [
+        f"-frameRange {frame_start} {frame_end}",
+        "-dataFormat ogawa",
+        root_args,
+        f'-file "{alembic_file}"',
+    ]
+
+    job_string = " ".join(job_parts)
+
+    cmds.AbcExport(
+        j=job_string,
+    )
