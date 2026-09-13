@@ -592,13 +592,9 @@ def publish_animation_cache(
         query=True,
         loaded=True,
     ):
+        cmds.loadPlugin("AbcExport")
 
-    cmds.loadPlugin("AbcExport")
-
-    root_args = " ".join(
-        f"-root {obj}"
-        for obj in selected_objects
-    )
+    root_args = " ".join(f"-root {obj}" for obj in selected_objects)
 
     job_parts = [
         f"-frameRange {frame_start} {frame_end}",
@@ -612,3 +608,56 @@ def publish_animation_cache(
     cmds.AbcExport(
         j=job_string,
     )
+
+    if not alembic_file.exists():
+        raise RuntimeError(
+            f"Alembic export did not create the expected file: {alembic_file}"
+        )
+
+    author = current_user.get("username", "Unknown")
+
+    asset = Asset(
+        name=asset_name,
+        asset_type=asset_type,
+        source_scene=cmds.file(query=True, sceneName=True) or "unsaved_scene",
+        version=version,
+        publish_path=str(version_path),
+        author=author,
+        department=department,
+        shot_name=shot_name,
+        publish_format="alembic",
+        source_dcc="maya",
+        target_dcc="houdini",
+        frame_start=frame_start,
+        frame_end=frame_end,
+        scale_to_target=0.01,
+        exports={
+            "alembic": str(alembic_file),
+        },
+    )
+
+    metadata_path = version_path / "metadata.json"
+
+    write_metadata(
+        asset,
+        metadata_path,
+    )
+
+    package = create_publish_package(version_path)
+    package_name = f"{shot_name}_{asset_name}_{version}.zip"
+    package_file_id = store_publish_package(package, package_name)
+    asset.package_file_id = str(package_file_id)
+
+    mongo_id = save_asset(asset.to_mongo_dict())
+
+    return {
+        "name": asset_name,
+        "shot_name": shot_name,
+        "department": department,
+        "version": version,
+        "frame_start": frame_start,
+        "frame_end": frame_end,
+        "alembic_file": str(alembic_file),
+        "package_file_id": str(package_file_id),
+        "mongo_id": mongo_id,
+    }
