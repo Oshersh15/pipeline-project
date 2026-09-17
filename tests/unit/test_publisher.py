@@ -90,6 +90,23 @@ def test_publish_animation_cache_raises_when_no_user_session(monkeypatch):
         )
 
 
+@pytest.mark.parametrize("asset_name", ["", "   ", None])
+def test_publish_animation_cache_requires_asset_name(monkeypatch, asset_name):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+
+    monkeypatch.setattr(
+        publisher,
+        "get_current_user",
+        lambda: {"username": "test_artist"},
+    )
+
+    with pytest.raises(ValueError, match="Asset name is required"):
+        publisher.publish_animation_cache(
+            shot_number=10,
+            asset_name=asset_name,
+        )
+
+
 def test_publish_animation_cache_raises_when_nothing_selected(monkeypatch):
     publisher = import_publisher_with_fake_maya(monkeypatch)
 
@@ -105,6 +122,51 @@ def test_publish_animation_cache_raises_when_nothing_selected(monkeypatch):
             shot_number=10,
             asset_name="heroCharacter",
         )
+
+
+def test_resolve_animation_frame_range_uses_maya_playback_range(monkeypatch):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+    publisher.cmds.playbackOptions = (
+        lambda query, min=False, max=False: 1001 if min else 1050
+    )
+
+    result = publisher._resolve_animation_frame_range()
+
+    assert result == (1001, 1050)
+
+
+def test_resolve_animation_frame_range_uses_custom_range(monkeypatch):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+    publisher.cmds.playbackOptions = lambda **kwargs: pytest.fail(
+        "Maya playback range should not be queried for a custom range."
+    )
+
+    result = publisher._resolve_animation_frame_range(-10, 20)
+
+    assert result == (-10, 20)
+
+
+@pytest.mark.parametrize(
+    ("frame_start", "frame_end"),
+    [
+        (1, None),
+        (None, 10),
+    ],
+)
+def test_resolve_animation_frame_range_rejects_incomplete_custom_range(
+    monkeypatch, frame_start, frame_end
+):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+
+    with pytest.raises(ValueError, match="must be provided together"):
+        publisher._resolve_animation_frame_range(frame_start, frame_end)
+
+
+def test_resolve_animation_frame_range_rejects_reversed_range(monkeypatch):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+
+    with pytest.raises(ValueError, match="greater than or equal"):
+        publisher._resolve_animation_frame_range(20, 10)
 
 
 def test_publish_animation_cache_exports_and_saves_publish(monkeypatch, tmp_path):

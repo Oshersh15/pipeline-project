@@ -522,11 +522,34 @@ def publish_selected_objects():
     return summary
 
 
+def _resolve_animation_frame_range(frame_start=None, frame_end=None):
+    """Return a complete, valid frame range for an animation publish."""
+    has_custom_start = frame_start is not None
+    has_custom_end = frame_end is not None
+
+    if has_custom_start != has_custom_end:
+        raise ValueError("Frame start and frame end must be provided together.")
+
+    if not has_custom_start:
+        frame_start = cmds.playbackOptions(query=True, min=True)
+        frame_end = cmds.playbackOptions(query=True, max=True)
+
+    frame_start = int(frame_start)
+    frame_end = int(frame_end)
+
+    if frame_end < frame_start:
+        raise ValueError("Frame end must be greater than or equal to frame start.")
+
+    return frame_start, frame_end
+
+
 def publish_animation_cache(
     shot_number,
     asset_name,
     asset_type="shot_animation",
     department="animation",
+    frame_start=None,
+    frame_end=None,
 ):
     """
     Publish an animated character cache for a shot workflow.
@@ -534,6 +557,12 @@ def publish_animation_cache(
     Args:
         shot_number (int | str): Shot number entered by the user.
         asset_name (str): Character or asset name.
+        asset_type (str): Database category for the published cache.
+        department (str): Department responsible for the publish.
+        frame_start (int, optional): Custom first export frame. When omitted,
+            the Maya playback range is used.
+        frame_end (int, optional): Custom last export frame. Must be supplied
+            together with frame_start.
 
     Returns:
         dict: Information describing the publish.
@@ -544,6 +573,11 @@ def publish_animation_cache(
     if not current_user:
         raise RuntimeError("No user is currently logged in.")
 
+    if not isinstance(asset_name, str) or not asset_name.strip():
+        raise ValueError("Asset name is required.")
+
+    asset_name = asset_name.strip()
+
     selected_objects = cmds.ls(selection=True)
 
     if not selected_objects:
@@ -551,18 +585,9 @@ def publish_animation_cache(
 
     shot_name = format_shot_name(shot_number)
 
-    frame_start = int(
-        cmds.playbackOptions(
-            query=True,
-            min=True,
-        )
-    )
-
-    frame_end = int(
-        cmds.playbackOptions(
-            query=True,
-            max=True,
-        )
+    frame_start, frame_end = _resolve_animation_frame_range(
+        frame_start,
+        frame_end,
     )
 
     version = get_next_shot_asset_version(

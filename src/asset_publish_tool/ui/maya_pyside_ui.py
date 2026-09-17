@@ -24,6 +24,7 @@ from asset_publish_tool.database.asset_repository import (
 )
 from asset_publish_tool.maya.importer import import_asset_package
 from asset_publish_tool.maya.publisher import (
+    publish_animation_cache,
     publish_selected_objects,
     validate_selected_objects,
 )
@@ -69,6 +70,133 @@ class AdminSettingsDialog(QtWidgets.QDialog):
         layout.addWidget(admin_widget)
 
 
+class AnimationPublishDialog(QtWidgets.QDialog):
+    """Collect the user inputs required for a shot animation publish."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle("Publish Shot Animation")
+        self.setMinimumWidth(440)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        form_layout = QtWidgets.QFormLayout()
+
+        self.shot_number_input = QtWidgets.QSpinBox()
+        self.shot_number_input.setRange(0, 999999)
+        self.shot_number_input.setValue(10)
+
+        self.asset_name_input = QtWidgets.QLineEdit()
+        self.asset_name_input.setPlaceholderText("e.g. heroCharacter")
+
+        self.department_dropdown = QtWidgets.QComboBox()
+        self.department_dropdown.addItem("animation")
+
+        self.selected_objects = cmds.ls(selection=True) or []
+        selection_text = (
+            ", ".join(self.selected_objects) if self.selected_objects else "None"
+        )
+
+        frame_start = int(cmds.playbackOptions(query=True, min=True))
+        frame_end = int(cmds.playbackOptions(query=True, max=True))
+
+        self.selection_label = QtWidgets.QLabel(selection_text)
+        self.selection_label.setWordWrap(True)
+
+        self.use_playback_range_checkbox = QtWidgets.QCheckBox(
+            "Use Maya playback range"
+        )
+        self.use_playback_range_checkbox.setChecked(True)
+
+        self.frame_start_input = QtWidgets.QSpinBox()
+        self.frame_start_input.setRange(-1000000, 1000000)
+        self.frame_start_input.setValue(frame_start)
+
+        self.frame_end_input = QtWidgets.QSpinBox()
+        self.frame_end_input.setRange(-1000000, 1000000)
+        self.frame_end_input.setValue(frame_end)
+
+        form_layout.addRow("Shot number", self.shot_number_input)
+        form_layout.addRow("Asset name", self.asset_name_input)
+        form_layout.addRow("Department", self.department_dropdown)
+        form_layout.addRow("Selected roots", self.selection_label)
+        form_layout.addRow(self.use_playback_range_checkbox)
+        form_layout.addRow("Frame start", self.frame_start_input)
+        form_layout.addRow("Frame end", self.frame_end_input)
+
+        layout.addLayout(form_layout)
+
+        self.button_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+        self.button_box.button(QtWidgets.QDialogButtonBox.Ok).setText("Publish Cache")
+        self.button_box.accepted.connect(self.validate_and_accept)
+        self.button_box.rejected.connect(self.reject)
+        self.use_playback_range_checkbox.toggled.connect(
+            self.update_frame_range_input_state
+        )
+
+        layout.addWidget(self.button_box)
+
+        self.update_frame_range_input_state(True)
+
+    def update_frame_range_input_state(self, use_playback_range):
+        """Enable custom frame fields only when playback range is disabled."""
+        custom_range_enabled = not use_playback_range
+        self.frame_start_input.setEnabled(custom_range_enabled)
+        self.frame_end_input.setEnabled(custom_range_enabled)
+
+    def validate_and_accept(self):
+        """Validate the form and accept the dialog when its inputs are valid."""
+        if not self.selected_objects:
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Nothing Selected",
+                "Select at least one Maya export root before publishing.",
+            )
+            return
+
+        if not self.asset_name_input.text().strip():
+            QtWidgets.QMessageBox.warning(
+                self,
+                "Missing Asset Name",
+                "Enter an asset name before continuing.",
+            )
+            self.asset_name_input.setFocus()
+            return
+
+        if not self.use_playback_range_checkbox.isChecked():
+            frame_start = self.frame_start_input.value()
+            frame_end = self.frame_end_input.value()
+
+            if frame_end < frame_start:
+                QtWidgets.QMessageBox.warning(
+                    self,
+                    "Invalid Frame Range",
+                    "Frame end must be greater than or equal to frame start.",
+                )
+                self.frame_end_input.setFocus()
+                return
+
+        self.accept()
+
+    def get_publish_inputs(self):
+        """Return the values currently entered in the publish form."""
+        use_playback_range = self.use_playback_range_checkbox.isChecked()
+
+        return {
+            "shot_number": self.shot_number_input.value(),
+            "asset_name": self.asset_name_input.text().strip(),
+            "department": self.department_dropdown.currentText(),
+            "frame_start": None
+            if use_playback_range
+            else self.frame_start_input.value(),
+            "frame_end": None
+            if use_playback_range
+            else self.frame_end_input.value(),
+        }
+
+
 class PipelineToolWindow(QtWidgets.QDialog):
     """
     Main asset publishing interface for Maya.
@@ -110,6 +238,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.validate_button = QtWidgets.QPushButton("Validate Selected Objects")
         self.fix_button = QtWidgets.QPushButton("Fix Invalid Names")
         self.publish_button = QtWidgets.QPushButton("Publish Selected Objects")
+        self.animation_publish_button = QtWidgets.QPushButton(
+            "Publish Animation Cache"
+        )
         self.search_bar = QtWidgets.QLineEdit()
         self.search_bar.setPlaceholderText("Search published assets...")
         self.import_asset_button = QtWidgets.QPushButton("Import Selected Asset")
@@ -155,6 +286,7 @@ class PipelineToolWindow(QtWidgets.QDialog):
         action_layout.addWidget(self.validate_button)
         action_layout.addWidget(self.fix_button)
         action_layout.addWidget(self.publish_button)
+        action_layout.addWidget(self.animation_publish_button)
 
         asset_action_layout = QtWidgets.QHBoxLayout()
         asset_action_layout.addWidget(self.import_asset_button)
@@ -393,6 +525,9 @@ class PipelineToolWindow(QtWidgets.QDialog):
         self.validate_button.clicked.connect(self.run_validation)
         self.fix_button.clicked.connect(self.run_fix_names)
         self.publish_button.clicked.connect(self.run_publish)
+        self.animation_publish_button.clicked.connect(
+            self.show_animation_publish_dialog
+        )
         self.search_bar.textChanged.connect(self.filter_asset_tables)
         self.import_asset_button.clicked.connect(self.import_selected_asset)
         self.retrieve_asset_button.clicked.connect(self.retrieve_selected_asset)
@@ -436,6 +571,31 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         if hasattr(self, "delete_asset_button"):
             self.delete_asset_button.clicked.connect(self.delete_selected_asset)
+
+    def show_animation_publish_dialog(self):
+        """Open the shot animation form and publish its validated inputs."""
+        dialog = AnimationPublishDialog(parent=self)
+
+        if not dialog.exec():
+            return
+
+        publish_inputs = dialog.get_publish_inputs()
+
+        try:
+            result = publish_animation_cache(**publish_inputs)
+        except (RuntimeError, ValueError) as error:
+            self.output.setText(f"Animation publish failed:\n{error}")
+            return
+
+        output = "Animation Publish Successful\n\n"
+        output += f"Shot: {result['shot_name']}\n"
+        output += f"Asset: {result['name']}\n"
+        output += f"Department: {result['department']}\n"
+        output += f"Version: {result['version']}\n"
+        output += f"Frame range: {result['frame_start']} to {result['frame_end']}\n"
+        output += f"Alembic: {result['alembic_file']}\n"
+
+        self.output.setText(output)
 
     def create_new_user(self):
         from asset_publish_tool.auth.user_manager import create_user
