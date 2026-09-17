@@ -8,6 +8,25 @@ validation rules used by the publishing pipeline.
 import re
 
 
+PUBLISH_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+def validate_publish_identifier(value, field_name="Identifier"):
+    """Return a safe publish identifier or raise a descriptive error."""
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{field_name} is required.")
+
+    identifier = value.strip()
+
+    if not PUBLISH_IDENTIFIER_PATTERN.fullmatch(identifier):
+        raise ValueError(
+            f"{field_name} must start with a letter and contain only "
+            "letters, numbers, and underscores."
+        )
+
+    return identifier
+
+
 def clean_name(name, required_checks=None):
     """
     Clean and standardise a Maya object name.

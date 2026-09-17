@@ -90,6 +90,25 @@ def test_publish_animation_cache_raises_when_no_user_session(monkeypatch):
         )
 
 
+def test_publish_animation_cache_raises_when_user_lacks_permission(monkeypatch):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+
+    monkeypatch.setattr(
+        publisher,
+        "get_current_user",
+        lambda: {"username": "test_viewer", "role": "viewer"},
+    )
+
+    with pytest.raises(
+        PermissionError,
+        match="does not have permission to publish assets",
+    ):
+        publisher.publish_animation_cache(
+            shot_number=10,
+            asset_name="heroCharacter",
+        )
+
+
 @pytest.mark.parametrize("asset_name", ["", "   ", None])
 def test_publish_animation_cache_requires_asset_name(monkeypatch, asset_name):
     publisher = import_publisher_with_fake_maya(monkeypatch)
@@ -97,7 +116,7 @@ def test_publish_animation_cache_requires_asset_name(monkeypatch, asset_name):
     monkeypatch.setattr(
         publisher,
         "get_current_user",
-        lambda: {"username": "test_artist"},
+        lambda: {"username": "test_artist", "role": "artist"},
     )
 
     with pytest.raises(ValueError, match="Asset name is required"):
@@ -107,13 +126,46 @@ def test_publish_animation_cache_requires_asset_name(monkeypatch, asset_name):
         )
 
 
+def test_publish_animation_cache_rejects_unsafe_asset_name(monkeypatch):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+
+    monkeypatch.setattr(
+        publisher,
+        "get_current_user",
+        lambda: {"username": "test_artist", "role": "artist"},
+    )
+
+    with pytest.raises(ValueError, match="letters, numbers, and underscores"):
+        publisher.publish_animation_cache(
+            shot_number=10,
+            asset_name="../heroCharacter",
+        )
+
+
+def test_publish_animation_cache_rejects_unsafe_department(monkeypatch):
+    publisher = import_publisher_with_fake_maya(monkeypatch)
+
+    monkeypatch.setattr(
+        publisher,
+        "get_current_user",
+        lambda: {"username": "test_artist", "role": "artist"},
+    )
+
+    with pytest.raises(ValueError, match="Department must start with a letter"):
+        publisher.publish_animation_cache(
+            shot_number=10,
+            asset_name="heroCharacter",
+            department="../animation",
+        )
+
+
 def test_publish_animation_cache_raises_when_nothing_selected(monkeypatch):
     publisher = import_publisher_with_fake_maya(monkeypatch)
 
     monkeypatch.setattr(
         publisher,
         "get_current_user",
-        lambda: {"username": "test_artist"},
+        lambda: {"username": "test_artist", "role": "artist"},
     )
     publisher.cmds.ls = lambda selection: []
 
@@ -181,7 +233,7 @@ def test_publish_animation_cache_exports_and_saves_publish(monkeypatch, tmp_path
     monkeypatch.setattr(
         publisher,
         "get_current_user",
-        lambda: {"username": "test_artist"},
+        lambda: {"username": "test_artist", "role": "artist"},
     )
     monkeypatch.setattr(
         publisher,
@@ -304,7 +356,7 @@ def test_publish_animation_cache_raises_when_alembic_file_is_missing(
     monkeypatch.setattr(
         publisher,
         "get_current_user",
-        lambda: {"username": "test_artist"},
+        lambda: {"username": "test_artist", "role": "artist"},
     )
     monkeypatch.setattr(
         publisher,

@@ -92,16 +92,18 @@ Maya artists can publish selected animation roots as baked Alembic caches from t
 
 The workflow performs the following stages:
 
-1. Require an authenticated user and Maya selection
-2. Format the supplied shot number, such as `10` to `shot010`
-3. Use the Maya playback range or a validated custom frame range
-4. Calculate the next version for the shot, asset, and department
-5. Export the selected roots as an Ogawa Alembic cache
-6. Verify that Maya created the expected file
-7. Write shot and animation metadata
-8. Package the cache and metadata as a ZIP archive
-9. Store the package in GridFS
-10. Save searchable publish metadata in MongoDB
+1. Require an authenticated user with publishing permission
+2. Require a Maya selection
+3. Validate safe asset and department identifiers
+4. Format the supplied shot number, such as `10` to `shot010`
+5. Use the Maya playback range or a validated custom frame range
+6. Calculate the next version for the shot, asset, and department
+7. Export the selected roots as an Ogawa Alembic cache
+8. Verify that Maya created the expected file
+9. Write shot and animation metadata
+10. Package the cache and metadata as a ZIP archive
+11. Store the package in GridFS
+12. Save searchable publish metadata in MongoDB
 
 Example local publish structure:
 
@@ -283,7 +285,7 @@ Current limitations are documented deliberately:
 - There is not yet a dedicated Houdini-facing publish browser or loader.
 - Alembic animation publishes are not yet composed into USD shot stages.
 - `scale_to_target=0.01` records the known Maya-to-Houdini conversion but does not yet apply that conversion automatically.
-- Shot asset names are required but are not yet managed by a controlled production asset catalogue.
+- Shot asset and department names are validated as safe identifiers but are not yet managed by a controlled production catalogue.
 - Publish metadata currently contains local filesystem paths.
 
 Planned development will focus on Houdini retrieval, explicit scale handling, and USD-native asset and shot composition using layers and references.

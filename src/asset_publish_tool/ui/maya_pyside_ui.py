@@ -9,6 +9,7 @@ controls used throughout the pipeline tool.
 import os
 import platform
 import subprocess
+import traceback
 from pathlib import Path
 
 import maya.cmds as cmds
@@ -22,6 +23,7 @@ from asset_publish_tool.database.asset_repository import (
     get_all_assets,
     retrieve_asset_to_cache,
 )
+from asset_publish_tool.core.naming import validate_publish_identifier
 from asset_publish_tool.maya.importer import import_asset_package
 from asset_publish_tool.maya.publisher import (
     publish_animation_cache,
@@ -156,11 +158,16 @@ class AnimationPublishDialog(QtWidgets.QDialog):
             )
             return
 
-        if not self.asset_name_input.text().strip():
+        try:
+            validate_publish_identifier(
+                self.asset_name_input.text(),
+                "Asset name",
+            )
+        except ValueError as error:
             QtWidgets.QMessageBox.warning(
                 self,
-                "Missing Asset Name",
-                "Enter an asset name before continuing.",
+                "Invalid Asset Name",
+                str(error),
             )
             self.asset_name_input.setFocus()
             return
@@ -583,8 +590,19 @@ class PipelineToolWindow(QtWidgets.QDialog):
 
         try:
             result = publish_animation_cache(**publish_inputs)
+        except PermissionError as error:
+            self.output.setText(f"Permission denied:\n{error}")
+            return
         except (RuntimeError, ValueError) as error:
             self.output.setText(f"Animation publish failed:\n{error}")
+            return
+        except Exception as error:
+            traceback.print_exc()
+            self.output.setText(
+                "Animation publish failed unexpectedly.\n"
+                f"{type(error).__name__}: {error}\n\n"
+                "See the Maya Script Editor for technical details."
+            )
             return
 
         output = "Animation Publish Successful\n\n"

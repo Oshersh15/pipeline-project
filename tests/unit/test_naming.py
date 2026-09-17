@@ -1,4 +1,6 @@
-from asset_publish_tool.core.naming import clean_name
+import pytest
+
+from asset_publish_tool.core.naming import clean_name, validate_publish_identifier
 
 
 def test_clean_name_converts_camel_case_to_lowercase():
@@ -26,3 +28,20 @@ def test_clean_name_removes_invalid_characters():
     )
 
     assert cleaned == "Big_Chair"
+
+
+@pytest.mark.parametrize(
+    "identifier",
+    ["heroCharacter", "hero_character", "character02"],
+)
+def test_validate_publish_identifier_accepts_safe_names(identifier):
+    assert validate_publish_identifier(identifier, "Asset name") == identifier
+
+
+@pytest.mark.parametrize(
+    "identifier",
+    ["../hero", "hero/character", "hero character", "_hero", "hero-character"],
+)
+def test_validate_publish_identifier_rejects_unsafe_names(identifier):
+    with pytest.raises(ValueError, match="letters, numbers, and underscores"):
+        validate_publish_identifier(identifier, "Asset name")

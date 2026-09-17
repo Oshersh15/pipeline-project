@@ -10,6 +10,7 @@ from asset_publish_tool.auth.session import (
 )
 from asset_publish_tool.core.asset import Asset
 from asset_publish_tool.core.metadata import write_metadata
+from asset_publish_tool.core.naming import validate_publish_identifier
 from asset_publish_tool.core.shot_naming import format_shot_name
 from asset_publish_tool.core.validator import (
     load_validation_rules,
@@ -573,10 +574,16 @@ def publish_animation_cache(
     if not current_user:
         raise RuntimeError("No user is currently logged in.")
 
-    if not isinstance(asset_name, str) or not asset_name.strip():
-        raise ValueError("Asset name is required.")
+    current_role = current_user.get("role")
 
-    asset_name = asset_name.strip()
+    if not has_permission(current_role, "publish_assets"):
+        raise PermissionError(
+            f"Current user role '{current_role}' does not have permission "
+            "to publish assets."
+        )
+
+    asset_name = validate_publish_identifier(asset_name, "Asset name")
+    department = validate_publish_identifier(department, "Department")
 
     selected_objects = cmds.ls(selection=True)
 
